@@ -163,13 +163,39 @@ if deepseek_api_key:
                 st.session_state.itinerary = response.content
                 st.write(response.content)
 
-    # Only show download button if there's an itinerary
+    # Only show download buttons if there's an itinerary
     with col2:
         if st.session_state.itinerary:
+            st.subheader("Save Your Itinerary")
+            st.markdown("Download in different formats for different uses:")
+
+            # .ics — 导入日历（Google Calendar / Apple Calendar）
             ics_content = generate_ics_content(st.session_state.itinerary)
             st.download_button(
-                label="Download Itinerary as Calendar (.ics)",
+                label="📅 Calendar (.ics) — import to Google/Apple Calendar",
                 data=ics_content,
-                file_name="travel_itinerary.ics",
+                file_name=f"{destination}_itinerary.ics",
                 mime="text/calendar"
+            )
+
+            # .md — Markdown 格式（适合发博客、做笔记、贴到 GitHub）
+            md_content = f"# {destination} {num_days}-Day Travel Itinerary\n\n"
+            md_content += f"**Budget:** {budget} | **Style:** {travel_style} | **Interests:** {interests_str} | **Dietary:** {dietary}\n\n"
+            md_content += f"---\n\n{st.session_state.itinerary}\n"
+            st.download_button(
+                label="📝 Markdown (.md) — for blogs & notes",
+                data=md_content,
+                file_name=f"{destination}_itinerary.md",
+                mime="text/markdown"
+            )
+
+            # .txt — 纯文本（最通用，任何设备都能打开）
+            txt_content = f"{destination} {num_days}-Day Travel Itinerary\n"
+            txt_content += f"Budget: {budget} | Style: {travel_style} | Interests: {interests_str} | Dietary: {dietary}\n"
+            txt_content += f"{'=' * 50}\n\n{st.session_state.itinerary}\n"
+            st.download_button(
+                label="📄 Plain Text (.txt) — universal format",
+                data=txt_content,
+                file_name=f"{destination}_itinerary.txt",
+                mime="text/plain"
             )
