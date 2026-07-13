@@ -24,7 +24,7 @@ Tell it where you want to go, how many days, and your preferences — it will:
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/YOUR_USERNAME/ai-travel-planner.git
+git clone https://github.com/lamyiufung0505-spec/ai-travel-planner.git
 cd ai-travel-planner
 
 # 2. Install dependencies
