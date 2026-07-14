@@ -2,9 +2,10 @@
 AI Travel Planner — 基于 DeepSeek 的智能旅行规划 Agent
 =========================================================
 
-架构：双 Agent 协作（Researcher + Planner）
-- Researcher Agent：负责搜索真实旅行信息（百度/DuckDuckGo）
-- Planner Agent：负责基于搜索结果生成个性化行程
+架构：三 Agent 协作（Researcher + Planner + Critic）
+- Researcher Agent：负责搜索真实旅行信息（国内：百度 + 小红书；海外：DuckDuckGo）
+- Planner Agent：负责基于搜索结果生成个性化行程（初稿 + 终稿）
+- Critic Agent：负责审查行程质量，发现问题并给出修改建议，让 Planner 改进
 
 改良自 awesome-llm-apps 项目的 ai_travel_agent 模板
 原作者：Shubhamsaboo (https://github.com/Shubhamsaboo/awesome-llm-apps)
@@ -12,9 +13,11 @@ AI Travel Planner — 基于 DeepSeek 的智能旅行规划 Agent
 改良点：
 1. DeepSeek 替代 OpenAI（更便宜、中文能力更强）
 2. 百度搜索替代 SerpAPI（中国目的地接地气、免费无额度限制）
-3. 智能搜索引擎切换（中国→百度，海外→DuckDuckGo）
-4. 5 个个性化输入（预算、风格、兴趣、饮食、备注）
-5. 多格式下载（.ics 日历、.md Markdown、.txt 纯文本）
+3. 新增小红书搜索工具（国内目的地获取高质量真实体验分享）
+4. 智能搜索引擎切换（中国→百度+小红书，海外→DuckDuckGo）
+5. 5 个个性化输入（预算、风格、兴趣、饮食、备注）
+6. 新增 Critic Agent（三 Agent 闭环：生成→审查→改进）
+7. 多格式下载（.ics 日历、.md Markdown、.txt 纯文本）
 """
 
 # ===== 导入依赖 =====
@@ -23,6 +26,10 @@ from agno.agent import Agent                 # agno 框架的核心类：创建 
 from agno.run.agent import RunOutput         # Agent.run() 的返回类型，包含 Agent 的输出文本 (.content)
 from agno.tools.duckduckgo import DuckDuckGoTools   # DuckDuckGo 搜索工具（海外目的地使用，无需 API Key）
 from agno.tools.baidusearch import BaiduSearchTools  # 百度搜索工具（中国目的地使用，无需 API Key，中文索引更全）
+from agno.tools.toolkit import Toolkit        # agno 工具基类：用于自定义小红书搜索工具
+from baidusearch.baidusearch import search   # 百度搜索底层库（BaiduSearchTools 也用它，我们直接调用以限定站点）
+import pycountry                             # 语言代码转换（百度搜索需要 2 字母语言码）
+import json                                  # 把搜索结果序列化为 JSON 字符串传给 LLM
 import streamlit as st                       # Web UI 框架：把 Python 脚本变成交互式网页应用
 import re                                    # 正则表达式：用于从行程文本中提取 "Day 1/Day 2" 等结构
 from agno.models.deepseek import DeepSeek    # agno 内置的 DeepSeek 模型适配器（自动处理 base_url 和 system role）
@@ -30,9 +37,69 @@ from icalendar import Calendar, Event        # 日历文件生成库：输出标
 from datetime import datetime, timedelta     # 日期处理：计算行程每一天对应的实际日期
 
 
+# ===== 自定义工具：小红书搜索 =====
+# 原理：百度搜索支持 site: 语法（如 "成都美食 site:xiaohongshu.com"），
+# 我们只搜小红书域名下的内容，获取到真实用户的旅行体验分享。
+# 这个工具继承 agno 的 Toolkit 基类，让 Researcher Agent 能像调用百度一样调用它。
+class XiaohongshuSearchTools(Toolkit):
+    """
+    小红书搜索工具：专门在 xiaohongshu.com 上搜索高质量的旅行攻略和真实体验笔记。
+
+    小红书是国内年轻人主流的生活方式分享平台，内容以真实用户体验为主，
+    特别适合获取：本地人推荐的餐厅、小众景点、避坑指南、季节限定活动。
+    相比百度百科式的官方信息，小红书内容更接地气、更新更快。
+    """
+
+    def __init__(self, fixed_max_results: int = None, fixed_language: str = "zh", **kwargs):
+        self.fixed_max_results = fixed_max_results
+        self.fixed_language = fixed_language
+        # 把 xiaohongshu_search 方法注册为 Agent 可调用的工具
+        super().__init__(name="xiaohongshu", tools=[self.xiaohongshu_search], **kwargs)
+
+    def xiaohongshu_search(self, query: str, max_results: int = 5, language: str = "zh") -> str:
+        """在小红书上搜索高质量的旅行攻略和真实体验分享笔记。
+
+        适合获取接地气的本地推荐：餐厅、小众景点、避坑经验、拍照机位等。
+        优先选择内容详细、有具体细节和真实体验的笔记，而非泛泛的推广内容。
+
+        Args:
+            query (str): 搜索关键词（如 "成都 美食 推荐"）
+            max_results (int, optional): 返回结果数量，默认 5
+            language (str, optional): 搜索语言，默认中文
+
+        Returns:
+            str: 包含小红书搜索结果的 JSON 字符串（标题、链接、摘要）
+        """
+        # 语言代码标准化（2 字母）
+        if len(language) != 2:
+            try:
+                language = pycountry.languages.lookup(language).alpha_2
+            except LookupError:
+                language = "zh"
+
+        max_results = self.fixed_max_results or max_results
+
+        # 核心：在用户查询后追加 site:xiaohongshu.com，限定只搜小红书站点
+        site_query = f"{query} site:xiaohongshu.com"
+
+        # 复用百度搜索底层库（同一个库，只是加了站点过滤）
+        results = search(keyword=site_query, num_results=max_results)
+
+        res = []
+        for idx, item in enumerate(results, 1):
+            res.append({
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "abstract": item.get("abstract", ""),   # 小红书笔记的摘要片段
+                "rank": str(idx),
+            })
+        # ensure_ascii=False 保证中文不乱码
+        return json.dumps(res, indent=2, ensure_ascii=False)
+
+
 # ===== 中国城市 & 关键词列表（用于智能切换搜索引擎） =====
 # 覆盖 80+ 个热门旅游城市、景点、省份简称
-# 如果用户输入匹配到任何一个，就自动切换到百度搜索（更接地气）
+# 如果用户输入匹配到任何一个，就自动切换到百度+小红书搜索（更接地气）
 CHINA_CITIES = {
     "北京", "上海", "广州", "深圳", "成都", "重庆", "杭州", "武汉", "西安", "南京",
     "长沙", "苏州", "郑州", "青岛", "大连", "厦门", "昆明", "贵阳", "拉萨", "桂林",
@@ -59,7 +126,7 @@ CHINA_KEYWORDS = {
 
 def is_chinese_destination(destination: str) -> bool:
     """
-    判断目的地是否在中国 → 决定用百度还是 DuckDuckGo 搜索
+    判断目的地是否在中国 → 决定用百度/小红书还是 DuckDuckGo 搜索
 
     检测逻辑（4层，任一层匹配即返回 True）：
     1. 输入是否包含 CHINA_CITIES 中的城市/景点名
@@ -158,7 +225,7 @@ def generate_ics_content(plan_text: str, start_date: datetime = None) -> bytes:
 
 # ===== 页面标题 & 会话状态初始化 =====
 st.title("AI Travel Planner 🧳")
-st.caption("智能旅行规划 — DeepSeek 驱动 · 百度/DuckDuckGo 搜索 · 个性化定制")
+st.caption("智能旅行规划 — DeepSeek 驱动 · 百度/小红书/DuckDuckGo 搜索 · 三 Agent 闭环")
 
 # session_state 是 Streamlit 的跨刷新持久化机制
 # 用户点按钮后页面会重新渲染，但 session_state 里的数据不会丢失
@@ -179,11 +246,20 @@ if deepseek_api_key:
 
     # ===== 智能搜索引擎切换 =====
     # 根据目的地自动选择最接地气的搜索源
-    # 中国目的地 → 百度搜索（中文索引全，搜出来的是马蜂窝/携程/大众点评）
+    # 中国目的地 → 百度 + 小红书（百度查官方信息，小红书查真实体验）
     # 海外目的地 → DuckDuckGo（全球英文索引，搜出来的是 TripAdvisor/英文博客）
     is_china = is_chinese_destination(destination) if destination else False
-    search_tools = BaiduSearchTools(fixed_language="zh") if is_china else DuckDuckGoTools()
-    search_engine_name = "百度搜索 🔴" if is_china else "DuckDuckGo 🔵"
+    if is_china:
+        # 国内：两个工具都给 Researcher —— 百度（官方/交通）+ 小红书（真实体验）
+        search_tools = [
+            BaiduSearchTools(fixed_language="zh"),
+            XiaohongshuSearchTools(fixed_language="zh"),
+        ]
+        search_engine_name = "百度 + 小红书 🔴"
+    else:
+        # 海外：只用 DuckDuckGo
+        search_tools = [DuckDuckGoTools()]
+        search_engine_name = "DuckDuckGo 🔵"
 
     # 在页面上显示当前使用的搜索引擎，让用户知道系统做了智能判断
     if destination:
@@ -193,22 +269,27 @@ if deepseek_api_key:
     # 中国目的地：搜索关键词和 instructions 都是中文，优先选本地平台
     # 海外目的地：搜索关键词和 instructions 都是英文
     if is_china:
-        # Researcher 的中文指令：生成中文搜索词 → 百度搜索 → 筛选本地平台结果
+        # Researcher 的中文指令：
+        # - 生成中文搜索词
+        # - 同时用百度和小红书搜索（百度查门票/交通，小红书查真实体验）
+        # - 优先选有具体细节的高质量内容
         researcher_instructions = [
             "给定一个中国旅行目的地和旅行天数，首先生成3个中文搜索关键词（如'成都 5日游 攻略'、'成都 美食推荐 本地人'、'成都 住宿 性价比'）。",
-            "对每个搜索关键词，使用百度搜索工具搜索并分析结果。",
-            "从所有搜索结果中，返回10条最相关且最实用的结果，优先选择来自马蜂窝、携程、大众点评、小红书等中国本地平台的真实信息。",
-            "记住：搜索结果的质量很重要，要确保信息来自真实的中国旅游平台和本地经验分享。",
+            "对每个搜索关键词，同时用百度搜索和小红书搜索两种工具搜索并分析结果。",
+            "百度搜索结果用于获取官方信息：景点介绍、门票价格、交通路线、开放时间。",
+            "小红书搜索结果用于获取真实用户体验：本地人推荐的餐厅、小众景点、避坑指南、拍照机位。",
+            "从所有搜索结果中，返回10条最相关且最实用的结果。小红书内容优先选择有具体细节和真实体验分享的笔记，而非泛泛的推广。",
+            "记住：搜索结果的质量很重要，要确保信息来自真实的本地平台和用户分享。",
         ]
         # Researcher 的中文身份描述（dedent 去除缩进，让传给模型的字符串干净）
         researcher_description = dedent(
             """\
             你是一位精通中国旅游的资深研究者。给定一个中国旅行目的地和旅行天数，
-            生成中文搜索关键词，通过百度搜索找到来自马蜂窝、携程、大众点评等中国本地平台的真实旅行攻略和信息。
-            重点关注本地人推荐的餐厅、性价比住宿、真实景点评价，而不是翻译的英文旅游博客。
+            生成中文搜索关键词，通过百度和小红书两种工具找到真实旅行信息。
+            百度用于官方信息和交通，小红书用于真实用户分享的餐厅、小众景点、避坑经验。
+            重点关注有具体细节的本地人推荐，而不是翻译的英文旅游博客或泛泛的推广内容。
             """
         )
-        # Planner 的中国专属约束：人民币价格、地铁线路、本地菜名
         planner_china_hint = [
             "CRITICAL: 这是一个中国国内目的地，行程中请使用中文地名和中文描述。推荐具体的餐厅名称、景点中文全名、地铁线路（如'地铁2号线宽窄巷子站'）。",
             "CRITICAL: 价格请用人民币（¥）标注，交通请说明具体的地铁/公交路线和票价。",
@@ -239,7 +320,7 @@ if deepseek_api_key:
     #   model       — 用的语言模型（DeepSeek，agno 自动处理 base_url 和 system role）
     #   description — 完整的身份说明书（"你是世界级旅行研究者..."）
     #   instructions — 分步执行指令（最影响 Agent 行为的参数！有序步骤列表）
-    #   tools       — Agent 可调用的外部工具（百度/DuckDuckGo 搜索）
+    #   tools       — Agent 可调用的外部工具（国内：百度+小红书；海外：DuckDuckGo）
     #   add_datetime_to_context — 自动注入当前日期时间，防止推荐过时信息
     researcher = Agent(
         name="Researcher",
@@ -247,7 +328,7 @@ if deepseek_api_key:
         model=DeepSeek(id="deepseek-chat", api_key=deepseek_api_key),
         description=researcher_description,
         instructions=researcher_instructions,
-        tools=[search_tools],
+        tools=search_tools,
         add_datetime_to_context=True,
     )
 
@@ -282,6 +363,32 @@ if deepseek_api_key:
         add_datetime_to_context=True,
     )
 
+    # ===== 创建 Agent 3：Critic（评审者）【新增】 =====
+    # 职责：审查 Planner 生成的初稿，对照用户偏好找出问题，给出具体修改建议
+    # 关键设计：Critic 没有 tools 参数——它只阅读和评价，不搜索
+    # 它的作用是形成"生成→审查→改进"闭环，让最终行程质量更高
+    # 这正是多 Agent 系统的核心模式（ai-hedge-fund 项目里也用了类似的 Risk Manager Agent）
+    critic = Agent(
+        name="Critic",
+        role="Reviews the itinerary for quality, consistency, and preference-adherence",
+        model=DeepSeek(id="deepseek-chat", api_key=deepseek_api_key),
+        description=dedent(
+            """\
+            你是一位严格的旅行行程评审专家。你会仔细阅读 Planner 生成的行程，
+            对照用户的所有偏好（预算、兴趣、风格、饮食），找出其中不合理、矛盾或低质量的地方，
+            并给出具体可执行的修改建议。你只做评审，不生成完整行程。
+            """
+        ),
+        instructions=[
+            "逐条检查行程是否严格遵守用户偏好：预算是否匹配（budget 不应出现五星酒店）、兴趣是否覆盖、风格是否符合（relaxed 不应排满）、饮食是否满足。",
+            "检查行程的合理性：同一天活动之间交通时间是否过长？是否有重复或矛盾？景点开放时间是否冲突？",
+            "检查信息质量：是否真实引用了搜索结果（小红书/百度）？是否有过时或不可信的内容？推荐是否具体可信？",
+            "给出具体修改建议，每条说明'问题是什么'和'怎么改'，不要泛泛而谈'请改进'。",
+            "如果行程整体质量很高、无明显问题，也明确说明'行程质量良好，无需重大修改'。",
+        ],
+        add_datetime_to_context=True,
+    )
+
     # ===== 个性化偏好输入 =====
     st.subheader("你的偏好")
     col_pref1, col_pref2 = st.columns(2)  # 两列布局，让界面不那么长
@@ -299,16 +406,24 @@ if deepseek_api_key:
     # text_area: 大文本框，适合自由输入额外需求（带小孩、恐高等）
     extra_notes = st.text_area("还有其他需求吗？（可选）", placeholder="例如：我想去看大熊猫、不喜欢太拥挤的景点、带小孩出行...")
 
+    # 把用户偏好拼成一个摘要字符串，后面给 Critic 审查时对照用
+    interests_str = ", ".join(interests) if interests else "general sightseeing"
+    preferences_summary = f"""
+    目的地：{destination}
+    天数：{num_days} 天
+    预算：{budget}
+    兴趣：{interests_str}
+    风格：{travel_style}
+    饮食：{dietary}
+    额外需求：{extra_notes if extra_notes else '无'}
+    """
+
     # ===== 生成按钮 + 下载区域（两列布局） =====
     col1, col2 = st.columns(2)
 
     with col1:
         if st.button("生成行程", type="primary"):
-            # 把所有偏好拼成查询字符串，传给 Researcher
-            # interests 是列表，用逗号连接成字符串；如果没选则默认 "general sightseeing"
-            interests_str = ", ".join(interests) if interests else "general sightseeing"
-
-            # 中国目的地用中文查询，海外目的地用英文查询
+            # 把目的地和偏好拼成查询字符串，传给 Researcher
             if is_china:
                 user_query = f"研究中国目的地 {destination} 的 {num_days} 天旅行攻略。预算：{budget}。兴趣：{interests_str}。风格：{travel_style}。饮食：{dietary}。额外需求：{extra_notes if extra_notes else '无'}"
             else:
@@ -321,12 +436,11 @@ if deepseek_api_key:
                 research_results: RunOutput = researcher.run(user_query, stream=False)
                 st.write("搜索完成 ✅")
 
-            # ===== Step 2: Planner Agent 生成行程 =====
+            # ===== Step 2: Planner Agent 生成初稿 =====
             # 把用户偏好 + Researcher 的搜索结果拼成完整的 Prompt
             # 关键：research_results.content 包含了真实搜索数据（不是模型编的）
-            # Planner 没有搜索工具，它只能基于这个 Prompt 里的信息来写行程
-            with st.spinner("正在生成你的个性化行程..."):
-                prompt = f"""
+            with st.spinner("Planner 正在生成行程初稿..."):
+                draft_prompt = f"""
                 Destination: {destination}
                 Duration: {num_days} days
                 Budget level: {budget}
@@ -338,10 +452,46 @@ if deepseek_api_key:
 
                 Research Results: {research_results.content}
 
-                Please create a detailed itinerary that STRICTLY respects ALL the user preferences above.
+                Please create a detailed itinerary draft that STRICTLY respects ALL the user preferences above.
                 """
-                # planner.run() 让 Planner 基于上面的 Prompt 生成行程
-                response: RunOutput = planner.run(prompt, stream=False)
+                # planner.run() 让 Planner 基于上面的 Prompt 生成初稿
+                itinerary_draft: RunOutput = planner.run(draft_prompt, stream=False)
+                st.write("初稿生成完成 ✅")
+
+            # ===== Step 3: Critic Agent 审查初稿【新增】 =====
+            # critic.run() 让 Critic 读取初稿 + 用户偏好，输出审查意见
+            # Critic 不会生成完整行程，只指出问题和修改建议
+            with st.spinner("Critic 正在审查行程质量..."):
+                critic_prompt = f"""
+                用户偏好：{preferences_summary}
+
+                请审查以下行程初稿，找出问题并给出修改建议：
+
+                {itinerary_draft.content}
+                """
+                critic_feedback: RunOutput = critic.run(critic_prompt, stream=False)
+                st.write("审查完成 ✅")
+
+            # 在折叠面板里展示 Critic 的审查意见（教学价值：能看到 Agent 发现了什么）
+            with st.expander("💡 查看 Critic 审查意见"):
+                st.write(critic_feedback.content)
+
+            # ===== Step 4: Planner Agent 根据审查意见修改【新增】 =====
+            # 把初稿 + 审查意见一起给 Planner，让它改进
+            # 这就是"生成→审查→改进"闭环的最后一环
+            with st.spinner("Planner 正在根据审查意见改进行程..."):
+                final_prompt = f"""
+                用户偏好：{preferences_summary}
+
+                原始行程（初稿）：
+                {itinerary_draft.content}
+
+                审查意见：
+                {critic_feedback.content}
+
+                请根据审查意见修改行程，解决所有指出的问题，生成最终版本。
+                """
+                response: RunOutput = planner.run(final_prompt, stream=False)
                 # 存到 session_state（防止页面刷新丢失行程内容）
                 st.session_state.itinerary = response.content
                 st.write(response.content)
