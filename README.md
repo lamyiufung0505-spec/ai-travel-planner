@@ -1,6 +1,6 @@
 # AI Travel Planner 🧳
 
-Plan your next adventure with AI — a personalized travel itinerary generator powered by DeepSeek, with smart search switching between Baidu (for China) and DuckDuckGo (for overseas).
+Plan your next adventure with AI — a personalized travel itinerary generator powered by DeepSeek, with smart search switching between Baidu + Xiaohongshu (for China) and DuckDuckGo (for overseas).
 
 Built on top of [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps) by Shubhamsaboo, with significant enhancements to personalization, model compatibility, and China-localized search.
 
@@ -8,14 +8,15 @@ Built on top of [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-a
 
 Tell it where you want to go, how many days, and your preferences — it will:
 
-1. **Auto-detect your destination** — Chinese cities use Baidu, overseas use DuckDuckGo
-2. **Search the web** for real, up-to-date travel info (马蜂窝/携程/大众点评 for China, global sources for overseas)
+1. **Auto-detect your destination** — Chinese cities use Baidu + Xiaohongshu, overseas use DuckDuckGo
+2. **Search the web** for real, up-to-date travel info (马蜂窝/携程/大众点评/小红书 for China, global sources for overseas)
 3. **Generate a personalized itinerary** that respects your budget, interests, and dietary needs
 4. **Export in 3 formats** — `.ics` (calendar), `.md` (blog/notes), `.txt` (universal)
 
 ## Features
 
-- **Smart Search Engine**: Auto-switches between Baidu (中国 🔴) and DuckDuckGo (海外 🔵) based on destination
+- **Smart Search Engine**: Auto-switches between Baidu + Xiaohongshu (中国 🔴) and DuckDuckGo (海外 🔵) based on destination
+- **Xiaohongshu (小红书) Search**: China destinations also pull authentic user travel notes from xiaohongshu.com (via Baidu `site:` filter) — hidden gems, local restaurant picks, photo spots, and 避坑 (pitfall) guides that official sites miss
 - **China-Localized**: Chinese destinations get Chinese search keywords, ¥ prices, subway routes, local dish names
 - **Dual-Agent Architecture**: A Researcher Agent searches the web, a Planner Agent writes the itinerary
 - **Personalized Preferences**: Budget level, travel style, interests, dietary restrictions, custom notes
@@ -60,7 +61,7 @@ User Input (destination, days, preferences)
    |         |
 China 🔴   Overseas 🔵
    |         |
-Baidu      DuckDuckGo
+Baidu + 小红书  DuckDuckGo
    |         |
    +----+----+
         |
@@ -118,6 +119,7 @@ The app supports the following personalization options:
 - **[DeepSeek](https://www.deepseek.com)** — LLM for reasoning and generation
 - **[agno](https://github.com/agno-agi/agno)** — Agent orchestration framework
 - **[Baidu Search](https://www.baidu.com)** — Chinese web search (free, no API key)
+- **[Xiaohongshu / 小红书](https://www.xiaohongshu.com)** — Real-user travel notes for China (via Baidu `site:xiaohongshu.com` filter, free, no API key)
 - **[DuckDuckGo](https://duckduckgo.com)** — Global web search (free, no API key)
 - **[Streamlit](https://streamlit.io)** — Python web UI framework
 - **[icalendar](https://pypi.org/project/icalendar/)** — Calendar file generation
@@ -128,6 +130,7 @@ The app supports the following personalization options:
 |--------|--------|
 | OpenAI GPT-4o → DeepSeek | Cheaper, better Chinese support, no overseas account needed |
 | SerpAPI → Baidu (China) + DuckDuckGo (overseas) | Free, no API key, auto-switch for best local results |
+| Added Xiaohongshu search for China | Pull authentic user experiences (real notes, 避坑, photo spots) from 小红书 via Baidu `site:` filter — more 接地气 than official sites |
 | Added smart destination detection | Chinese cities get real local info from 马蜂窝/携程/大众点评 |
 | Added 5 personalization inputs | Budget, style, interests, dietary, notes |
 | Added 4 CRITICAL prompt constraints | Force the model to strictly respect user preferences |
