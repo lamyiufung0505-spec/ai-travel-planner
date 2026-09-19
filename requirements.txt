@@ -1,6 +1,0 @@
-streamlit
-agno[deepseek]>=2.2.10
-duckduckgo-search
-baidusearch
-pycountry
-icalendar

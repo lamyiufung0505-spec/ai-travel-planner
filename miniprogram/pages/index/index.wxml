@@ -1,0 +1,223 @@
+<!-- pages/index/index.wxml —— 与 demo.html 完全一致的 UI -->
+<view class="screen">
+
+  <!-- ========== 首页 ========== -->
+  <view class="view" wx:if="{{view==='home'}}">
+    <view class="hero" style="padding-top:{{statusBarHeight+6}}px">
+      <view class="pin">🧭</view>
+      <view class="eyebrow">AI Travel Planner</view>
+      <view class="h1">告诉我去哪</view>
+      <view class="h1">剩下的交给我</view>
+      <view class="sub">三智能体协同：搜资料 · 排行程 · 再审校，给你一份能直接用的旅行计划</view>
+    </view>
+
+    <scroll-view scroll-y class="scroll">
+      <view class="sheet card">
+        <view class="field">
+          <view class="label"><text class="ic">📍</text> 目的地 <text class="hint">城市 / 国家</text></view>
+          <view class="search-box">
+            <input class="inp" value="{{dest}}" placeholder="例如：成都、东京、清迈" bindinput="onDestInput" />
+          </view>
+        </view>
+
+        <view class="field">
+          <view class="label"><text class="ic">📅</text> 行程天数</view>
+          <view class="stepper">
+            <view class="stepbtn" bindtap="minusDay">−</view>
+            <view class="stepval">{{days}}<text class="small">天</text></view>
+            <view class="stepbtn" bindtap="plusDay">+</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <view class="label"><text class="ic">📆</text> 出发日期 <text class="hint">决定每日天气</text></view>
+          <picker mode="date" value="{{selectedDate}}" start="{{today}}" bindchange="onDateChange">
+            <view class="search-box datepick">
+              <text class="dp-text">{{dateLabel}}</text>
+              <text class="dp-caret">▾</text>
+            </view>
+          </picker>
+        </view>
+
+        <view class="field">
+          <view class="label"><text class="ic">💰</text> 预算偏好</view>
+          <view class="seg">
+            <view wx:for="{{budgets}}" wx:key="*this" class="seg-item {{budgetIdx===index?'on':''}}" data-idx="{{index}}" bindtap="selectBudget">{{item}}</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <view class="label"><text class="ic">✨</text> 旅行兴趣 <text class="hint">可多选</text></view>
+          <view class="chips">
+            <view wx:for="{{interests}}" wx:key="v" class="chip {{item.on?'on':''}}" data-idx="{{index}}" bindtap="toggleInterest">
+              <text class="emo">{{item.emo}}</text>{{item.v}}
+            </view>
+          </view>
+        </view>
+
+        <view class="field">
+          <view class="label"><text class="ic">🚶</text> 旅行节奏</view>
+          <view class="seg">
+            <view wx:for="{{styles}}" wx:key="v" class="seg-item {{styleIdx===index?'on':''}}" data-idx="{{index}}" bindtap="selectStyle">{{item.label}}</view>
+          </view>
+        </view>
+
+        <view class="field">
+          <view class="label"><text class="ic">🎒</text> 个人偏好 <text class="hint">自由填写</text></view>
+          <textarea class="pref-box" value="{{prefs}}" placeholder="例如：带 2 岁宝宝、不吃辣、想看一场演唱会、慢节奏不想赶景点…" bindinput="onPrefsInput" />
+        </view>
+
+        <view class="examples">
+          <view wx:for="{{examples}}" wx:key="title" class="ex" data-idx="{{index}}" bindtap="applyExample">{{item.title}}</view>
+        </view>
+      </view>
+    </scroll-view>
+
+    <view class="cta" bindtap="generate">✨ 开始规划我的行程</view>
+  </view>
+
+  <!-- ========== 加载页 ========== -->
+  <view class="view loading" wx:if="{{view==='loading'}}" style="padding-top:{{statusBarHeight}}px">
+    <view class="lwrap">
+      <view class="orbit"><view class="globe">🌏</view></view>
+      <view class="ltitle">正在为你定制行程</view>
+      <view class="lsub">三个 AI 智能体正在协同工作…</view>
+      <view class="lsub2">真实模式需联网检索 + 多轮生成，约 1–3 分钟，请耐心等待，不要关闭本页</view>
+
+      <view class="agents">
+        <view class="agent {{loadingStep>=1?'show':''}} {{loadingStep>=2?'done':''}}">
+          <view class="logo">🔍</view>
+          <view class="meta"><view class="nm">研究员 Researcher</view><view class="ds">检索真实旅行资料 · 筛选 Top 10</view></view>
+          <view class="state">{{loadingStep>=2?'✓ 已检索':'搜索中'}}</view>
+        </view>
+        <view class="agent {{loadingStep>=2?'show':''}} {{loadingStep>=3?'done':''}}">
+          <view class="logo">🗺️</view>
+          <view class="meta"><view class="nm">规划师 Planner</view><view class="ds">按偏好撰写行程初稿</view></view>
+          <view class="state">{{loadingStep>=3?'✓ 初稿完成':'待命'}}</view>
+        </view>
+        <view class="agent {{loadingStep>=3?'show':''}}">
+          <view class="logo">⚖️</view>
+          <view class="meta"><view class="nm">评审员 Critic</view><view class="ds">对照偏好挑刺 · 给出修改建议</view></view>
+          <view class="state">工作中</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== 结果页 ========== -->
+  <view class="view result" wx:if="{{view==='result'}}">
+    <view class="rhead" style="padding-top:{{statusBarHeight}}px">
+      <view class="rnav">
+        <view class="rnav-back" bindtap="backHome">‹</view>
+        <view class="rnav-title">行程方案</view>
+        <view class="rnav-more">⋯</view>
+      </view>
+      <view class="summary">
+        <text class="city">{{rCity}}</text>
+        <text class="tag">{{rDays}}</text>
+        <text class="tag">{{rStyle}}</text>
+        <text class="tag">{{rBudget}}</text>
+        <text class="tag">{{rRange}}</text>
+      </view>
+      <view class="reqnote" wx:if="{{rReq}}">🎒 {{rReq}}</view>
+      <view class="facts">
+        <view><text class="b">{{rTemp}}</text>首日气温</view>
+        <view><text class="b">{{rWeather}}</text>天气</view>
+        <view><text class="b">{{rSpots}}</text>推荐安排</view>
+      </view>
+    </view>
+
+    <scroll-view scroll-y class="scroll">
+      <view class="weather-strip">
+        <view wx:for="{{weather}}" wx:key="index" class="wcard {{item.far?'far':''}}">
+          <view class="wd">{{item.label}}</view>
+          <view class="wi">{{item.far?'🌫️':item.icon}}</view>
+          <view class="wt">{{item.far?'日期太远':(item.max+'°/'+item.min+'°')}}</view>
+          <view class="ws">{{item.far?'暂无法预报':item.text}}</view>
+        </view>
+      </view>
+      <view class="wnote {{weatherOk?'ok':''}}">{{weatherNote}}</view>
+
+      <!-- 概览卡 -->
+      <view class="day card day-intro" wx:if="{{planJson.summary}}">
+        <view class="dhead"><view class="dnum">📋<text class="small">INFO</text></view><view class="dtitle">行程概览</view></view>
+        <view class="acts"><view class="adesc">{{planJson.summary}}</view></view>
+      </view>
+
+      <!-- 每日卡 -->
+      <view class="day card" wx:for="{{planJson.days}}" wx:key="day" wx:for-item="d">
+        <view class="dhead">
+          <view class="dnum">D{{d.day}}<text class="small">DAY</text></view>
+          <view class="dcol">
+            <view class="dtitle">{{d.theme}} <text class="dweather">{{d.wstr}}</text></view>
+            <view class="ddate">{{d.dlabel}} · 第 {{d.day}} 天</view>
+          </view>
+        </view>
+        <view class="acts">
+          <view class="rslot" wx:for="{{d.slots}}" wx:key="period" wx:for-item="slot">
+            <view class="rlabel">{{slot.periodLabel}}</view>
+            <view class="ritem" wx:for="{{slot.items}}" wx:key="title" wx:for-item="it">
+              <view class="ricon" style="background:{{it.color}}">{{it.icon}}</view>
+              <view class="rbody">
+                <view class="rtitle">{{it.title}} <text class="dur" wx:if="{{it.duration}}">{{it.duration}}</text></view>
+                <view class="rnote" wx:if="{{it.note}}">{{it.note}}</view>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 贴士 -->
+      <view class="day card day-intro" wx:if="{{planJson.tips.length}}">
+        <view class="dhead"><view class="dnum">💡<text class="small">TIPS</text></view><view class="dtitle">实用贴士</view></view>
+        <view class="acts"><view class="tips"><view class="tip" wx:for="{{planJson.tips}}" wx:key="*this">• {{item}}</view></view></view>
+      </view>
+
+      <!-- AI 参考来源：AI 实际搜到的帖子/视频（旅行主题优先+播放量排序+携程保底，默认露 6 条） -->
+      <view class="day card day-intro srcbox" wx:if="{{srcTop.length}}">
+        <view class="dhead">
+          <view class="dnum">📑<text class="small">SRC</text></view>
+          <view class="dtitle">AI 参考来源 <text class="srccount">{{srcTotal}}</text></view>
+          <view class="srcnote">AI 实际搜到的帖子</view>
+        </view>
+        <view class="acts">
+          <view class="src" wx:for="{{srcTop}}" wx:key="url" bindtap="onCopyLink" data-url="{{item.url}}" hover-class="src-hover">
+            <view class="srcrow">
+              <text class="stag s-{{item.cls}}">{{item.source}}</text>
+              <text class="smeta">{{item.abstract}}</text>
+            </view>
+            <view class="stit2">{{item.title}}</view>
+          </view>
+          <view wx:if="{{srcRest.length}}" class="srcmore" bindtap="toggleSources">
+            {{sourcesOpen ? '▲ 收起其余 ' + srcRest.length + ' 条' : '▼ 展开其余 ' + srcRest.length + ' 条（按相关性/播放量排序）'}}
+          </view>
+          <block wx:if="{{sourcesOpen}}">
+            <view class="src" wx:for="{{srcRest}}" wx:key="url" bindtap="onCopyLink" data-url="{{item.url}}" hover-class="src-hover">
+              <view class="srcrow">
+                <text class="stag s-{{item.cls}}">{{item.source}}</text>
+                <text class="smeta">{{item.abstract}}</text>
+              </view>
+              <view class="stit2">{{item.title}}</view>
+            </view>
+          </block>
+          <view class="srchint">💡 点击任意条目复制链接，粘贴到浏览器打开</view>
+        </view>
+      </view>
+
+      <!-- 小红书实时笔记（复制官方搜索链接，合规不抓内容） -->
+      <view class="xhsbar" bindtap="onXhs" hover-class="xhs-hover">📕 在小红书看「{{rCity}}」实时笔记</view>
+
+      <!-- 下载卡（演示） -->
+      <view class="downloads">
+        <view class="dl" bindtap="onDownload" data-type="ics"><view class="di">📅</view><view class="dt">日历 .ics</view></view>
+        <view class="dl" bindtap="onDownload" data-type="md"><view class="di">📝</view><view class="dt">笔记 .md</view></view>
+        <view class="dl" bindtap="onDownload" data-type="txt"><view class="di">📄</view><view class="dt">文本 .txt</view></view>
+      </view>
+
+      <button class="sharebar" open-type="share">📤 分享给旅伴 / 发到微信群</button>
+      <view class="backhome" bindtap="backHome">← 返回重新规划</view>
+      <view class="bottompad"></view>
+    </scroll-view>
+  </view>
+
+</view>

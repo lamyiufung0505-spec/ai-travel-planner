@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>AI 旅行规划 · 小程序前端 Demo</title>
+<style>
+  :root {
+    --ink: #1c2230;
+    --ink-soft: #5a6478;
+    --ink-faint: #99a1b3;
+    --line: #eef1f6;
+    --sky-1: #2e7cf6;
+    --sky-2: #19b6e8;
+    --sun: #ff8a4c;
+    --sun-2: #ff5e7d;
+    --mint: #07c160;
+    --card: #ffffff;
+    --bg: #f4f6fb;
+    --shadow: 0 18px 50px -22px rgba(28, 40, 80, .38);
+    --radius: 22px;
+    --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--font);
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 700px at 12% -8%, #e8f0ff 0%, transparent 55%),
+      radial-gradient(1000px 700px at 110% 8%, #ffe9dd 0%, transparent 50%),
+      linear-gradient(160deg, #eef3fc 0%, #f6f1fb 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 32px 16px;
+  }
+
+  /* ---------- 手机外壳 ---------- */
+  .phone {
+    position: relative;
+    width: 390px;
+    height: 844px;
+    background: #0e1320;
+    border-radius: 54px;
+    padding: 13px;
+    box-shadow: 0 40px 90px -30px rgba(15, 23, 50, .55), 0 0 0 2px #232a3d;
+  }
+  .phone::after {
+    content: "";
+    position: absolute;
+    top: 13px; left: 50%;
+    transform: translateX(-50%);
+    width: 132px; height: 30px;
+    background: #0e1320;
+    border-radius: 0 0 18px 18px;
+    z-index: 30;
+  }
+  .screen {
+    position: relative;
+    width: 100%; height: 100%;
+    background: var(--bg);
+    border-radius: 42px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- 状态栏 ---------- */
+  .statusbar {
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 26px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 20;
+  }
+  .statusbar .dots { display: flex; gap: 5px; align-items: center; }
+  .statusbar .dots i { width: 6px; height: 6px; border-radius: 50%; background: #fff; opacity: .9; display: block; }
+  .statusbar .right { display: flex; gap: 7px; align-items: center; font-size: 13px; }
+  .battery { width: 24px; height: 12px; border: 1.5px solid #fff; border-radius: 3px; position: relative; }
+  .battery::after { content:""; position:absolute; right:-3px; top:3px; width:2px; height:6px; background:#fff; border-radius:0 2px 2px 0; }
+  .battery::before { content:""; position:absolute; left:1.5px; top:1.5px; bottom:1.5px; width:15px; background:#fff; border-radius:1px; }
+
+  /* ---------- 通用导航标题条 ---------- */
+  .nav {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 18px 14px;
+    color: #fff;
+    position: relative; z-index: 20;
+  }
+  .nav .back { font-size: 22px; line-height: 1; opacity: .9; cursor: pointer; }
+  .nav .title { font-size: 17px; font-weight: 700; letter-spacing: .5px; }
+  .nav .spacer { flex: 1; }
+  .nav .more { font-size: 20px; opacity: .85; }
+
+  .scroll { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; }
+  .scroll::-webkit-scrollbar { width: 0; }
+
+  /* ---------- 首页 ---------- */
+  #home .hero {
+    background: linear-gradient(150deg, var(--sky-1), var(--sky-2) 60%, #57d6c4);
+    padding: 6px 22px 34px;
+    border-radius: 0 0 30px 30px;
+    position: relative;
+  }
+  #home .hero .eyebrow {
+    font-size: 12.5px; letter-spacing: 3px; opacity: .85; font-weight: 600;
+    text-transform: uppercase;
+  }
+  #home .hero h1 {
+    margin: 8px 0 6px; font-size: 28px; font-weight: 800; line-height: 1.25;
+    text-shadow: 0 2px 16px rgba(0,0,0,.12);
+  }
+  #home .hero p { margin: 0; font-size: 13.5px; opacity: .92; }
+  #home .hero .pin {
+    position: absolute; right: 18px; top: 12px;
+    width: 78px; height: 78px; border-radius: 24px;
+    background: rgba(255,255,255,.16);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 38px; backdrop-filter: blur(4px);
+  }
+
+  .sheet {
+    margin: -20px 16px 0;
+    background: var(--card);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 20px 18px 22px;
+    position: relative; z-index: 5;
+  }
+  .field { margin-bottom: 20px; }
+  .field:last-child { margin-bottom: 0; }
+  .label {
+    font-size: 13px; font-weight: 700; color: var(--ink-soft);
+    display: flex; align-items: center; gap: 7px; margin-bottom: 11px;
+  }
+  .label .ic { width: 18px; height: 18px; display: inline-flex; }
+  .label .hint { margin-left: auto; font-weight: 500; color: var(--ink-faint); font-size: 11.5px; }
+
+  .search-box {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg); border: 1.5px solid var(--line);
+    border-radius: 14px; padding: 13px 14px;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .search-box:focus-within { border-color: var(--sky-1); box-shadow: 0 0 0 4px rgba(46,124,246,.12); }
+  .search-box input {
+    border: none; outline: none; background: transparent;
+    font-size: 15px; color: var(--ink); flex: 1; font-family: var(--font);
+  }
+  .search-box input[type="date"] { color: var(--ink); }
+  .search-box svg { flex: 0 0 auto; }
+
+  /* 个人偏好自由输入 */
+  .pref-box {
+    width: 100%; border: 1.5px solid var(--line); border-radius: 14px;
+    padding: 12px 14px; font-size: 14px; color: var(--ink); font-family: var(--font);
+    background: var(--bg); resize: none; outline: none; line-height: 1.6;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .pref-box:focus { border-color: var(--sky-1); box-shadow: 0 0 0 4px rgba(46,124,246,.12); }
+
+  /* 出发日期选择条 */
+  .date-pick { cursor: pointer; }
+  .dp-text { flex: 1; font-size: 15px; color: var(--ink); user-select: none; }
+  .dp-text.empty { color: var(--ink-faint); }
+  .dp-caret { flex: 0 0 auto; transition: transform .2s ease; }
+  .date-pick.open .dp-caret { transform: rotate(180deg); }
+
+  /* 自定义日历弹层 */
+  .cal-mask {
+    position: fixed; inset: 0; background: rgba(16,22,34,.45);
+    display: none; align-items: center; justify-content: center; z-index: 60;
+    animation: fadeIn .16s ease;
+  }
+  .cal-mask.show { display: flex; }
+  .cal {
+    width: 326px; max-width: 90vw; background: #fff; border-radius: 22px;
+    padding: 18px 18px 12px; box-shadow: 0 26px 64px rgba(20,30,55,.34);
+    animation: popIn .22s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .cal-title { font-size: 16.5px; font-weight: 700; color: var(--ink); }
+  .cal-nav {
+    width: 36px; height: 36px; border: none; border-radius: 11px; background: #f1f3f8;
+    font-size: 20px; line-height: 1; color: var(--ink-soft); cursor: pointer; transition: background .15s;
+  }
+  .cal-nav:hover:not(:disabled) { background: #e6eaf3; }
+  .cal-nav:disabled { opacity: .3; cursor: not-allowed; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-grid.cal-week span { text-align: center; font-size: 12px; color: var(--ink-faint); padding: 4px 0; }
+  .cal-day {
+    text-align: center; font-size: 14.5px; color: var(--ink); padding: 9px 0;
+    border-radius: 11px; cursor: pointer; transition: background .14s, color .14s; user-select: none;
+  }
+  .cal-day:hover:not(.dis):not(.sel) { background: #eef2fb; }
+  .cal-day.dis { color: #cfd5e0; cursor: not-allowed; }
+  .cal-day.today { font-weight: 700; color: var(--sky-1); }
+  .cal-day.sel { background: linear-gradient(135deg, var(--sky-1), var(--sky-2)); color: #fff; font-weight: 700; box-shadow: 0 6px 14px rgba(46,124,246,.34); }
+  .cal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+  .cal-btn {
+    border: none; border-radius: 11px; padding: 9px 16px; font-size: 13.5px; cursor: pointer; font-family: var(--font);
+  }
+  .cal-btn.ghost { background: #f1f3f8; color: var(--ink-soft); }
+  .cal-btn.ghost:hover { background: #e6eaf3; }
+  @keyframes popIn { from { transform: scale(.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 9px; }
+  .chip {
+    border: 1.5px solid var(--line); background: #fff;
+    padding: 9px 14px; border-radius: 12px;
+    font-size: 13.5px; color: var(--ink-soft); cursor: pointer;
+    transition: all .18s ease; user-select: none;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .chip .emo { font-size: 15px; }
+  .chip.on {
+    border-color: var(--sky-1); color: var(--sky-1);
+    background: rgba(46,124,246,.08); font-weight: 600;
+  }
+
+  .stepper { display: flex; align-items: center; gap: 0; }
+  .stepper button {
+    width: 40px; height: 40px; border-radius: 12px; border: 1.5px solid var(--line);
+    background: #fff; font-size: 22px; color: var(--ink-soft); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all .15s;
+  }
+  .stepper button:active { transform: scale(.92); }
+  .stepper .val {
+    flex: 1; text-align: center; font-size: 20px; font-weight: 800; color: var(--ink);
+  }
+  .stepper .val small { font-size: 13px; font-weight: 600; color: var(--ink-faint); margin-left: 3px; }
+
+  .seg { display: flex; background: var(--bg); border-radius: 14px; padding: 4px; gap: 4px; }
+  .seg div {
+    flex: 1; text-align: center; padding: 10px 4px; border-radius: 11px;
+    font-size: 13.5px; color: var(--ink-soft); cursor: pointer; transition: all .18s; font-weight: 600;
+  }
+  .seg div.on { background: #fff; color: var(--ink); box-shadow: 0 4px 14px -6px rgba(0,0,0,.18); }
+
+  .cta {
+    margin: 22px 16px 24px;
+    background: linear-gradient(120deg, var(--sun), var(--sun-2));
+    color: #fff; border: none; border-radius: 16px;
+    padding: 16px; font-size: 16px; font-weight: 800; letter-spacing: 1px;
+    box-shadow: 0 16px 30px -12px rgba(255, 94, 125, .6);
+    cursor: pointer; width: calc(100% - 32px);
+    transition: transform .12s, box-shadow .2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .cta:active { transform: translateY(2px) scale(.99); }
+  .cta[disabled] { opacity: .6; }
+
+  .examples { margin: 0 16px 8px; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+  .examples::-webkit-scrollbar { height: 0; }
+  .ex {
+    flex: 0 0 auto; font-size: 12px; color: var(--sky-1);
+    background: rgba(46,124,246,.08); border-radius: 20px; padding: 7px 13px; cursor: pointer;
+    white-space: nowrap;
+  }
+
+  /* ---------- 加载页 ---------- */
+  #loading { background: linear-gradient(170deg, #0f1830, #16224a); color: #fff; }
+  #loading .lwrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 30px; }
+  #loading .orbit {
+    width: 150px; height: 150px; border-radius: 50%; position: relative; margin-bottom: 38px;
+    background: conic-gradient(from 0deg, rgba(255,255,255,.04), rgba(255,255,255,.14), rgba(255,255,255,.04));
+    animation: spin 3.4s linear infinite;
+  }
+  #loading .orbit::before {
+    content:""; position:absolute; inset: 14px; border-radius: 50%;
+    border: 1.5px dashed rgba(255,255,255,.18);
+  }
+  #loading .globe {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 52px; animation: float 2.6s ease-in-out infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes float { 0%,100%{ transform: translateY(-4px);} 50%{ transform: translateY(6px);} }
+  #loading h2 { font-size: 21px; font-weight: 800; margin: 0 0 6px; }
+  #loading .sub { font-size: 13px; color: #9fb0d8; margin-bottom: 30px; }
+
+  .agents { width: 100%; display: flex; flex-direction: column; gap: 12px; }
+  .agent {
+    display: flex; align-items: center; gap: 13px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 16px; padding: 14px 15px;
+    opacity: .5; transform: translateY(8px);
+    transition: all .5s cubic-bezier(.2,.8,.2,1);
+  }
+  .agent.show { opacity: 1; transform: translateY(0); }
+  .agent.done { border-color: rgba(7,193,96,.5); }
+  .agent .logo {
+    width: 42px; height: 42px; border-radius: 12px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+    background: rgba(255,255,255,.1);
+  }
+  .agent .meta { flex: 1; }
+  .agent .meta .nm { font-size: 14.5px; font-weight: 700; }
+  .agent .meta .ds { font-size: 11.5px; color: #9fb0d8; margin-top: 2px; }
+  .agent .state { font-size: 12px; color: #9fb0d8; display: flex; align-items: center; gap: 6px; }
+  .agent.done .state { color: var(--mint); }
+  .agent .spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.25); border-top-color: #fff;
+    animation: spin .8s linear infinite;
+  }
+  .agent.done .spinner { display: none; }
+  .agent .check { display: none; color: var(--mint); font-weight: 800; }
+  .agent.done .check { display: inline; }
+
+  /* ---------- 结果页 ---------- */
+  #result { background: var(--bg); }
+  #result .rhead {
+    background: linear-gradient(150deg, var(--sky-1), var(--sky-2));
+    padding: 6px 20px 22px; color: #fff;
+  }
+  #result .rhead .summary {
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  #result .rhead .city { font-size: 24px; font-weight: 800; }
+  #result .rhead .tag { font-size: 12.5px; opacity: .9; background: rgba(255,255,255,.2); padding: 3px 10px; border-radius: 20px; }
+  #result .rhead .reqnote {
+    margin-top: 10px; font-size: 12.5px; line-height: 1.5;
+    background: rgba(255,255,255,.18); border-radius: 12px; padding: 8px 12px; display: none;
+  }
+  #result .rhead .facts { display: flex; gap: 18px; margin-top: 12px; }
+  #result .rhead .facts div { font-size: 12.5px; opacity: .92; }
+  #result .rhead .facts b { display: block; font-size: 17px; font-weight: 800; margin-bottom: 1px; }
+
+  .weather-strip {
+    display: flex; gap: 10px; overflow-x: auto; margin: 14px 16px 0; padding-bottom: 4px;
+  }
+  .weather-strip::-webkit-scrollbar { height: 0; }
+  .wcard {
+    flex: 0 0 auto; width: 86px; background: #fff; border-radius: 16px;
+    padding: 12px 6px; text-align: center; box-shadow: var(--shadow);
+  }
+  .wcard .wd { font-size: 11px; color: var(--ink-faint); font-weight: 700; }
+  .wcard .wi { font-size: 28px; margin: 6px 0 4px; }
+  .wcard .wt { font-size: 13px; font-weight: 800; color: var(--ink); }
+  .wcard .ws { font-size: 10.5px; color: var(--ink-soft); margin-top: 2px; }
+  .wcard.far { background: #eef0f5; }
+  .wcard.far .wi { opacity: .5; }
+  .wcard.far .wt { color: var(--ink-faint); font-size: 11px; font-weight: 700; }
+  .wcard.far .ws { color: var(--ink-faint); }
+
+  .wnote { margin: 9px 18px 0; font-size: 11.5px; color: var(--sun-2); line-height: 1.5; }
+  .wnote.ok { color: var(--ink-faint); }
+
+  .day {
+    margin: 16px 16px 0; background: #fff; border-radius: 20px;
+    box-shadow: 0 12px 30px -20px rgba(28,40,80,.4); overflow: hidden;
+  }
+  .day .dhead {
+    display: flex; align-items: center; gap: 12px; padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .day .dnum {
+    width: 44px; height: 44px; border-radius: 13px; flex: 0 0 auto;
+    background: linear-gradient(140deg, var(--sky-1), var(--sky-2));
+    color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: 800; line-height: 1;
+  }
+  .day .dnum small { font-size: 9px; font-weight: 600; opacity: .9; margin-top: 2px; }
+  .day .dtitle { font-size: 15px; font-weight: 700; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+  .day .dweather { font-size: 11px; font-weight: 700; color: var(--sky-1); background: rgba(46,124,246,.1); padding: 2px 9px; border-radius: 8px; }
+  .day .ddate { font-size: 11.5px; color: var(--ink-faint); margin-top: 3px; }
+
+  .acts { padding: 6px 16px 14px; }
+  .act {
+    display: flex; gap: 13px; padding: 12px 0; position: relative;
+    border-bottom: 1px dashed var(--line);
+  }
+  .act:last-child { border-bottom: none; }
+  .act .rail { flex: 0 0 auto; width: 42px; display: flex; flex-direction: column; align-items: center; }
+  .act .time { font-size: 11px; color: var(--ink-faint); font-weight: 600; }
+  .act .node { width: 10px; height: 10px; border-radius: 50%; background: var(--sky-1); margin-top: 4px; box-shadow: 0 0 0 4px rgba(46,124,246,.12); }
+  .act .body { flex: 1; }
+  .act .atitle { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+  .act .atitle .kind { font-size: 10px; font-weight: 700; color: #fff; background: var(--sun); padding: 1px 7px; border-radius: 6px; }
+  .act .adesc { font-size: 12.5px; color: var(--ink-soft); margin-top: 4px; line-height: 1.5; }
+  /* Markdown 渲染内容样式 */
+  .adesc p { margin: 6px 0; }
+  .adesc strong { color: var(--ink); font-weight: 700; }
+  .adesc strong.md-h { display: block; margin: 10px 0 4px; font-size: 14px; color: var(--sky-1); }
+  .adesc ul { padding-left: 18px; margin: 4px 0; }
+  .adesc li { margin: 2px 0; }
+  .adesc blockquote { border-left: 3px solid var(--mint); padding-left: 10px; margin: 6px 0; color: var(--ink-soft); }
+  .day-intro { background: linear-gradient(135deg, #f0f7ff, #fff8f0); border-radius: 16px; overflow: hidden; }
+  .day-intro .dnum { background: #e8f0fe !important; color: var(--sky-1) !important; }
+  .act .ameta { margin-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .act .ameta span { font-size: 11px; color: var(--ink-faint); background: var(--bg); padding: 3px 9px; border-radius: 8px; }
+
+  /* ===== 结构化行程卡片（renderPlanJson） ===== */
+  .rslot { margin: 8px 0 4px; }
+  .rslot:first-child { margin-top: 2px; }
+  .rlabel {
+    font-size: 12px; font-weight: 700; color: var(--sky-1);
+    display: flex; align-items: center; gap: 7px; margin: 10px 0 2px;
+  }
+  .rlabel::before { content: ""; width: 3px; height: 13px; border-radius: 3px; background: var(--sky-1); }
+  .ritem {
+    display: flex; gap: 11px; padding: 10px 0; align-items: flex-start;
+    border-bottom: 1px dashed var(--line);
+  }
+  .ritem:last-child { border-bottom: none; }
+  .ricon {
+    flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 17px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.08);
+  }
+  .rbody { flex: 1; min-width: 0; }
+  .rtitle { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .rnote { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+  .dur {
+    font-size: 10.5px; font-weight: 700; color: var(--ink-faint);
+    background: var(--bg); padding: 1px 8px; border-radius: 7px; border: 1px solid var(--line);
+  }
+  ul.tips { padding-left: 18px; margin: 4px 0; }
+  ul.tips li { font-size: 12.5px; color: var(--ink-soft); margin: 5px 0; line-height: 1.5; }
+
+  .downloads { margin: 18px 16px 0; display: flex; gap: 10px; }
+  .dl {
+    flex: 1; background: #fff; border: 1.5px solid var(--line); border-radius: 14px;
+    padding: 12px; text-align: center; cursor: pointer; transition: all .15s;
+  }
+  .dl:active { transform: scale(.96); }
+  .dl .di { font-size: 20px; }
+  .dl .dt { font-size: 12px; color: var(--ink-soft); margin-top: 4px; font-weight: 600; }
+  .sharebar { margin: 14px 16px 26px; }
+  .sharebar button {
+    width: 100%; background: var(--mint); color: #fff; border: none; border-radius: 14px;
+    padding: 14px; font-size: 15px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .sharebar button:active { transform: translateY(2px); }
+
+  /* ===== AI 参考来源（展示研究员实际搜到的帖子/网页） ===== */
+  .sources {
+    margin: 16px 16px 0; background: #fff; border-radius: 20px;
+    box-shadow: 0 12px 30px -20px rgba(28,40,80,.4); overflow: hidden;
+  }
+  .sources .shead {
+    display: flex; align-items: center; gap: 8px; padding: 13px 16px;
+    border-bottom: 1px solid var(--line); cursor: pointer; user-select: none;
+  }
+  .sources .shead .sico { font-size: 16px; }
+  .sources .shead .stitle { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .sources .shead .scount {
+    font-size: 11px; font-weight: 700; color: var(--sky-1);
+    background: rgba(46,124,246,.1); padding: 2px 9px; border-radius: 8px;
+  }
+  .sources .shead .snote { margin-left: auto; font-size: 11px; color: var(--ink-faint); }
+  .sources .shead .sarrow { font-size: 13px; color: var(--ink-faint); transition: transform .2s; }
+  .sources.open .shead .sarrow { transform: rotate(180deg); }
+  .sources .sbody { display: none; padding: 6px 16px 14px; }
+  .sources.open .sbody { display: block; }
+
+  /* ===== 去小红书看实时笔记（官方搜索深链，展示最新真帖） ===== */
+  .xhs {
+    margin: 14px 16px 0; padding: 15px 18px; border-radius: 18px;
+    background: linear-gradient(135deg,#ff2442,#ff5c77); color: #fff;
+    display: flex; align-items: center; gap: 12px; cursor: pointer;
+    box-shadow: 0 10px 24px -12px rgba(255,36,66,.6);
+  }
+  .xhs:active { transform: translateY(2px); }
+  .xhs .xico { font-size: 24px; line-height: 1; }
+  .xhs .xt { font-size: 15px; font-weight: 800; }
+  .xhs .xs { font-size: 12px; opacity: .92; margin-top: 3px; }
+  .xhs .xarr { margin-left: auto; font-size: 20px; opacity: .9; }
+  .src {
+    display: block; text-decoration: none; color: inherit;
+    padding: 11px 0; border-bottom: 1px dashed var(--line);
+  }
+  .src:last-child { border-bottom: none; }
+  .src .stag {
+    display: inline-block; font-size: 10px; font-weight: 700; color: #fff;
+    padding: 1px 7px; border-radius: 6px; margin-bottom: 5px;
+  }
+  .src .stag.xhs { background: #ff2e4d; }
+  .src .stag.bd { background: #2563eb; }
+  .src .stag.bili { background: #00aeec; }
+  .src .stag.ctrip { background: #15b89a; }
+  .src .stag.unk { background: #8a93a6; }
+  .src .stit { font-size: 13px; font-weight: 700; line-height: 1.45; color: var(--ink); }
+  .src .sab { font-size: 11.5px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+  .src .surl { font-size: 10.5px; color: var(--ink-faint); margin-top: 4px; word-break: break-all; }
+
+  /* 来源为空时的提示 */
+  .src-empty { text-align: center; padding: 24px 16px 18px; }
+  .src-empty-icon { font-size: 32px; margin-bottom: 8px; }
+  .src-empty-text { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+  .src-empty-hint { font-size: 12px; color: var(--ink-soft); line-height: 1.55; margin-bottom: 10px; }
+  .src-empty-tip { font-size: 12.5px; color: #ff2e4d; font-weight: 500; }
+
+  /* 「展开其余 N 条」折叠区 */
+  .src-more { margin: 2px 16px 14px; }
+  .src-more summary {
+    font-size: 12px; color: var(--ink-soft); cursor: pointer; user-select: none;
+    text-align: center; padding: 9px 0; border-radius: 8px; background: rgba(0,0,0,.035);
+  }
+  .src-more summary:hover { background: rgba(0,0,0,.06); }
+  .src-more[open] summary { margin-bottom: 8px; }
+
+  /* ---------- 屏切换 ---------- */
+  .screen > .view {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    opacity: 0; pointer-events: none; transform: translateX(24px);
+    transition: opacity .42s ease, transform .42s cubic-bezier(.2,.8,.2,1);
+  }
+  .screen > .view.active { opacity: 1; pointer-events: auto; transform: none; }
+  #home { z-index: 3; }
+  #loading { z-index: 4; }
+  #result { z-index: 5; }
+
+  .caption {
+    text-align: center; margin-top: 22px; color: var(--ink-soft);
+    font-size: 12.5px; max-width: 390px; line-height: 1.6;
+  }
+  .caption b { color: var(--sky-1); }
+
+  /* ---------- 真机自适应：去掉桌面手机外壳，填满手机屏幕 ---------- */
+  @media (max-width: 520px) {
+    html, body { height: 100%; }
+    body {
+      padding: 0;
+      min-height: 100dvh;
+      background: var(--bg);
+      align-items: stretch;
+      justify-content: stretch;
+    }
+    .phone {
+      width: 100vw;
+      height: 100dvh;
+      height: 100svh;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
+      background: var(--bg);
+    }
+    .phone::after { display: none; }
+    .screen { border-radius: 0; }
+    .statusbar { padding-top: max(env(safe-area-inset-top, 0px), 4px); }
+    .caption { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="screen">
+
+    <!-- ========== 首页 ========== -->
+    <section class="view active" id="home">
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="right"><span>5G</span><span class="battery"></span></span>
+      </div>
+      <div class="hero">
+        <div class="pin">🧭</div>
+        <div class="eyebrow">AI Travel Planner</div>
+        <h1>告诉我去哪<br/>剩下的交给我</h1>
+        <p>三智能体协同：搜资料 · 排行程 · 再审校，给你一份能直接用的旅行计划</p>
+      </div>
+
+      <div class="scroll">
+        <div class="sheet">
+          <div class="field">
+            <div class="label">
+              <span class="ic">📍</span> 目的地
+              <span class="hint">城市 / 国家</span>
+            </div>
+            <div class="search-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5a6478" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input id="dest" placeholder="例如：成都、东京、清迈" value="成都" />
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label"><span class="ic">📅</span> 行程天数</div>
+            <div class="stepper">
+              <button id="minus">−</button>
+              <div class="val"><span id="days">5</span><small>天</small></div>
+              <button id="plus">+</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label"><span class="ic">📆</span> 出发日期 <span class="hint">决定每日天气</span></div>
+            <div class="search-box date-pick" id="datePick">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5a6478" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+              <span class="dp-text" id="dpText">选择出发日期</span>
+              <svg class="dp-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5a6478" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label"><span class="ic">💰</span> 预算偏好</div>
+            <div class="seg" id="budget">
+              <div>经济</div>
+              <div class="on">舒适</div>
+              <div>轻奢</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label"><span class="ic">✨</span> 旅行兴趣 <span class="hint">可多选</span></div>
+            <div class="chips" id="interests">
+              <div class="chip on" data-v="美食"><span class="emo">🍜</span>美食</div>
+              <div class="chip on" data-v="自然风光"><span class="emo">🏞️</span>自然风光</div>
+              <div class="chip" data-v="历史人文"><span class="emo">🏛️</span>历史人文</div>
+              <div class="chip on" data-v="拍照打卡"><span class="emo">📸</span>拍照打卡</div>
+              <div class="chip" data-v="购物"><span class="emo">🛍️</span>购物</div>
+              <div class="chip" data-v="夜生活"><span class="emo">🌃</span>夜生活</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label"><span class="ic">🚶</span> 旅行节奏</div>
+            <div class="seg" id="style">
+              <div data-v="relaxed">轻松</div>
+              <div class="on" data-v="balanced">均衡</div>
+              <div data-v="adventure">紧凑</div>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="label"><span class="ic">🎒</span> 个人偏好 <span class="hint">自由填写</span></div>
+            <textarea id="prefs" class="pref-box" rows="3" placeholder="例如：带 2 岁宝宝、不吃辣、想看一场演唱会、慢节奏不想赶景点…"></textarea>
+          </div>
+        </div>
+
+        <div class="examples" id="examples">
+          <div class="ex">成都 3 天美食之旅</div>
+          <div class="ex">东京 5 天亲子游</div>
+          <div class="ex">清迈悠闲度假</div>
+        </div>
+      </div>
+
+      <button class="cta" id="generate">✨ 开始规划我的行程</button>
+    </section>
+
+    <!-- ========== 加载页 ========== -->
+    <section class="view" id="loading">
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="right"><span>5G</span><span class="battery"></span></span>
+      </div>
+      <div class="lwrap">
+        <div class="orbit"><div class="globe">🌏</div></div>
+        <h2>正在为你定制行程</h2>
+        <div class="sub">三个 AI 智能体正在协同工作…</div>
+        <div class="sub" style="margin-top:6px;opacity:.7;font-size:12px;">真实模式需联网检索 + 多轮生成，约 1–3 分钟，请耐心等待，不要关闭本页</div>
+        <div class="agents">
+          <div class="agent" id="ag1">
+            <div class="logo">🔍</div>
+            <div class="meta"><div class="nm">研究员 Researcher</div><div class="ds">检索真实旅行资料 · 筛选 Top 10</div></div>
+            <div class="state"><span class="spinner"></span><span class="check">✓</span><span class="txt">搜索中</span></div>
+          </div>
+          <div class="agent" id="ag2">
+            <div class="logo">🗺️</div>
+            <div class="meta"><div class="nm">规划师 Planner</div><div class="ds">按偏好撰写行程初稿</div></div>
+            <div class="state"><span class="spinner"></span><span class="check">✓</span><span class="txt">待命</span></div>
+          </div>
+          <div class="agent" id="ag3">
+            <div class="logo">⚖️</div>
+            <div class="meta"><div class="nm">评审员 Critic</div><div class="ds">对照偏好挑刺 · 给出修改建议</div></div>
+            <div class="state"><span class="spinner"></span><span class="check">✓</span><span class="txt">待命</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 结果页 ========== -->
+    <section class="view" id="result">
+      <div class="statusbar" style="color:#fff">
+        <span>9:41</span>
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="right"><span>5G</span><span class="battery"></span></span>
+      </div>
+      <div class="nav">
+        <span class="back" id="backHome">‹</span>
+        <span class="title">行程方案</span>
+        <span class="spacer"></span>
+        <span class="more">⋯</span>
+      </div>
+      <div class="scroll">
+        <div class="rhead">
+          <div class="summary">
+            <span class="city" id="rCity">成都</span>
+            <span class="tag" id="rDays">5 天 4 晚</span>
+            <span class="tag" id="rStyle">均衡</span>
+            <span class="tag" id="rBudget">舒适</span>
+            <span class="tag" id="rRange">8/10–8/14</span>
+          </div>
+          <div class="reqnote" id="rReq" style="display:none">🎒 <span id="rReqText"></span></div>
+          <div class="facts">
+            <div><b id="rTemp">—</b>首日气温</div>
+            <div><b id="rWeather">待定</b>天气</div>
+            <div><b id="rSpots">8</b>推荐安排</div>
+          </div>
+        </div>
+
+        <div class="weather-strip" id="weather-strip"></div>
+        <div class="wnote ok" id="wnote">天气数据来自 Open-Meteo，仅供参考</div>
+
+        <div id="days-wrap"></div>
+
+        <div class="downloads">
+          <div class="dl"><div class="di">📅</div><div class="dt">日历 .ics</div></div>
+          <div class="dl"><div class="di">📝</div><div class="dt">笔记 .md</div></div>
+          <div class="dl"><div class="di">📄</div><div class="dt">文本 .txt</div></div>
+        </div>
+
+        <div class="sources" id="sources" style="display:block">
+          <div class="shead" id="sourcesHead">
+            <span class="sico">📑</span>
+            <span class="stitle">AI 参考来源</span>
+            <span class="scount" id="srcCount">0</span>
+            <span class="snote">研究员实际搜到的帖子</span>
+            <span class="sarrow">▾</span>
+          </div>
+          <div class="sbody" id="srcBody"></div>
+        </div>
+
+        <div class="xhs" id="xhsBtn">
+          <div class="xico">📕</div>
+          <div>
+            <div class="xt" id="xhsTitle">在小红书看实时笔记</div>
+            <div class="xs" id="xhsSub">点开看当下最新真实帖子（官方搜索）</div>
+          </div>
+          <div class="xarr">›</div>
+        </div>
+
+        <div class="sharebar">
+          <button id="shareBtn">📤 分享给旅伴 / 发到微信群</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- 自定义日历弹层（点出发日期后弹出，支持翻月、禁选过去） -->
+<div class="cal-mask" id="calMask">
+  <div class="cal">
+    <div class="cal-head">
+      <button type="button" class="cal-nav" id="calPrev">‹</button>
+      <div class="cal-title" id="calTitle">2026年8月</div>
+      <button type="button" class="cal-nav" id="calNext">›</button>
+    </div>
+    <div class="cal-grid cal-week">
+      <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-foot">
+      <button type="button" class="cal-btn ghost" id="calToday">回到今天</button>
+      <button type="button" class="cal-btn ghost" id="calCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="caption">
+  👆 微信小程序风格旅行规划前端 Demo。<b>选天数 + 指定出发日期 + 填写个人偏好</b>后，会调用 Open-Meteo 真实查询每日天气；<br/>
+  超出可预报范围或查不到时，会如实标注「日期太远 / 未找到」，不编造。真实行程需接你的后端（含联网搜索）。
+</div>
+
+<script>
+  // ---------- 状态 ----------
+  let days = 5;
+  let budget = "舒适";
+  const interests = new Set(["美食","自然风光","拍照打卡"]);
+
+  // ---------- 日期工具 ----------
+  const pad = n => String(n).padStart(2, "0");
+  function fmtISO(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+  function addDaysISO(iso, n){ const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate()+n); return fmtISO(d); }
+  function todayISO(){ return fmtISO(new Date()); }
+  function md(iso){ return iso.slice(5).replace("-", "/"); }
+
+  // ---------- 出发日期：自定义日历弹层 ----------
+  const WK = ["周日","周一","周二","周三","周四","周五","周六"];
+  function fmtCN(iso){ const d = new Date(iso + "T00:00:00"); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${WK[d.getDay()]}`; }
+  let selectedDate = todayISO();                 // 当前选中的出发日期（ISO 格式）
+  const dpText = document.getElementById("dpText");
+  const datePick = document.getElementById("datePick");
+  const calMask = document.getElementById("calMask");
+  const calGrid = document.getElementById("calGrid");
+  const calTitle = document.getElementById("calTitle");
+  const calPrev = document.getElementById("calPrev");
+  const calNext = document.getElementById("calNext");
+  let viewY, viewM;                              // 弹层当前显示的年月
+
+  function syncDpText(){ dpText.textContent = fmtCN(selectedDate); dpText.classList.remove("empty"); }
+
+  function renderCal(y, m){
+    viewY = y; viewM = m;
+    calTitle.textContent = `${y}年${m+1}月`;
+    const now = new Date();                       // 不允许翻到早于本月的月份
+    calPrev.disabled = (y === now.getFullYear() && m === now.getMonth());
+    const first = new Date(y, m, 1);
+    const startPad = first.getDay();              // 本月1号是星期几
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    const cells = [];
+    for(let i = 0; i < startPad; i++) cells.push(null);
+    for(let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while(cells.length % 7 !== 0) cells.push(null);
+    const tISO = todayISO();
+    calGrid.innerHTML = cells.map(c => {
+      if(c === null) return `<div class="cal-day" style="visibility:hidden"></div>`;
+      const iso = `${y}-${pad(m+1)}-${pad(c)}`;
+      const dis = iso < tISO;                     // 过去的日期禁用（只能选今天及以后）
+      const cls = ["cal-day"];
+      if(dis) cls.push("dis");
+      if(iso === tISO) cls.push("today");
+      if(iso === selectedDate) cls.push("sel");
+      return `<div class="${cls.join(" ")}" data-iso="${iso}"${dis ? " data-dis=\"1\"" : ""}>${c}</div>`;
+    }).join("");
+  }
+
+  function stepMonth(delta){
+    let y = viewY, m = viewM + delta;
+    if(m < 0){ m = 11; y--; } else if(m > 11){ m = 0; y++; }
+    renderCal(y, m);
+  }
+  function openCal(){
+    const d = new Date(selectedDate + "T00:00:00");
+    renderCal(d.getFullYear(), d.getMonth());
+    calMask.classList.add("show"); datePick.classList.add("open");
+  }
+  function closeCal(){ calMask.classList.remove("show"); datePick.classList.remove("open"); }
+
+  datePick.onclick = openCal;
+  calMask.onclick = (e) => { if(e.target === calMask) closeCal(); };   // 点遮罩关闭
+  calPrev.onclick = () => stepMonth(-1);
+  calNext.onclick = () => stepMonth(1);
+  calGrid.onclick = (e) => {                                            // 选日期：即时回填并关闭
+    const cell = e.target.closest(".cal-day");
+    if(!cell || cell.dataset.dis) return;
+    selectedDate = cell.dataset.iso;
+    syncDpText();
+    closeCal();
+  };
+  document.getElementById("calCancel").onclick = closeCal;
+  document.getElementById("calToday").onclick = () => {
+    selectedDate = todayISO(); syncDpText();
+    const d = new Date(); renderCal(d.getFullYear(), d.getMonth()); closeCal();
+  };
+  syncDpText();                                                        // 初始显示今天
+
+  // ---------- 天数 ----------
+  const daysEl = document.getElementById("days");
+  document.getElementById("plus").onclick = () => { days = Math.min(14, days+1); daysEl.textContent = days; };
+  document.getElementById("minus").onclick = () => { days = Math.max(1, days-1); daysEl.textContent = days; };
+
+  // ---------- 预算 ----------
+  document.querySelectorAll("#budget div").forEach(d => {
+    d.onclick = () => {
+      document.querySelectorAll("#budget div").forEach(x => x.classList.remove("on"));
+      d.classList.add("on");
+      budget = d.textContent.trim();
+    };
+  });
+
+  // ---------- 兴趣 ----------
+  document.querySelectorAll("#interests .chip").forEach(c => {
+    c.onclick = () => {
+      c.classList.toggle("on");
+      const v = c.dataset.v;
+      c.classList.contains("on") ? interests.add(v) : interests.delete(v);
+    };
+  });
+
+  // ---------- 旅行节奏 ----------
+  let travelStyle = "balanced";
+  document.querySelectorAll("#style div").forEach(d => {
+    d.onclick = () => {
+      document.querySelectorAll("#style div").forEach(x => x.classList.remove("on"));
+      d.classList.add("on");
+      travelStyle = d.dataset.v;
+    };
+  });
+
+  // ---------- 示例 ----------
+  const exData = {
+    "成都 3 天美食之旅": { dest:"成都", days:3, budget:"舒适", style:"balanced", prefs:"", int:["美食","拍照打卡"] },
+    "东京 5 天亲子游": { dest:"东京", days:5, budget:"轻奢", style:"relaxed", prefs:"带 2 个孩子，行程别太赶、多亲子项目", int:["自然风光","购物"] },
+    "清迈悠闲度假": { dest:"清迈", days:4, budget:"经济", style:"relaxed", prefs:"想慢节奏度假、泡酒店和夜市", int:["自然风光","夜生活"] },
+  };
+  document.querySelectorAll("#examples .ex").forEach(e => {
+    e.onclick = () => {
+      const d = exData[e.textContent.trim()]; if(!d) return;
+      document.getElementById("dest").value = d.dest;
+      days = d.days; daysEl.textContent = days;
+      document.querySelectorAll("#budget div").forEach(x => x.classList.toggle("on", x.textContent.trim()===d.budget));
+      budget = d.budget;
+      document.querySelectorAll("#style div").forEach(x => x.classList.toggle("on", x.dataset.v===d.style));
+      travelStyle = d.style || "balanced";
+      document.getElementById("prefs").value = d.prefs || "";
+      document.querySelectorAll("#interests .chip").forEach(c => {
+        const on = d.int.includes(c.dataset.v);
+        c.classList.toggle("on", on);
+        on ? interests.add(c.dataset.v) : interests.delete(c.dataset.v);
+      });
+    };
+  });
+
+  // ---------- 天气：WMO 代码 → 图标+文字 ----------
+  const WMO = {
+    0:["☀️","晴"],1:["🌤️","晴间多云"],2:["⛅","局部多云"],3:["☁️","阴"],
+    45:["🌫️","雾"],48:["🌫️","雾凇"],
+    51:["🌦️","毛毛雨"],53:["🌦️","毛毛雨"],55:["🌦️","毛毛雨"],
+    56:["🌧️","冻毛雨"],57:["🌧️","冻毛雨"],
+    61:["🌧️","小雨"],63:["🌧️","中雨"],65:["🌧️","大雨"],
+    66:["🌧️","冻雨"],67:["🌧️","冻雨"],
+    71:["❄️","小雪"],73:["❄️","中雪"],75:["❄️","大雪"],77:["❄️","雪粒"],
+    80:["🌦️","阵雨"],81:["🌦️","阵雨"],82:["⛈️","强阵雨"],
+    85:["🌨️","阵雪"],86:["🌨️","阵雪"],
+    95:["⛈️","雷暴"],96:["⛈️","雷暴伴雹"],99:["⛈️","强雷暴"]
+  };
+  const wmo = code => WMO[code] || ["🌡️","未知"];
+
+  // ---------- 真实天气查询（Open-Meteo，无需 Key） ----------
+  // 带超时的 fetch 封装（防止网络卡死导致页面永远停在 loading）
+  function fetchWithTimeout(url, ms = 8000){
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+  }
+  async function geocode(name){
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=zh`;
+    const r = await fetchWithTimeout(url, 6000);
+    const j = await r.json();
+    return (j.results && j.results.length) ? j.results[0] : null;
+  }
+  async function forecast(lat, lon, start, end){
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
+      + `&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`
+      + `&start_date=${start}&end_date=${end}`;
+    const r = await fetchWithTimeout(url, 10000);
+    if(!r.ok){
+      const body = await r.text().catch(() => "");
+      throw new Error("forecast http " + r.status + " " + body);
+    }
+    return (await r.json()).daily;
+  }
+  // 把返回的逐日天气按我们请求的日期对齐；缺哪天=查不到（如实标记）
+  function alignWeather(daily, dates){
+    if(!daily || !daily.time) return dates.map(()=>null);
+    const map = {};
+    daily.time.forEach((t, i) => {
+      map[t] = { code: daily.weather_code[i], max: daily.temperature_2m_max[i], min: daily.temperature_2m_min[i] };
+    });
+    return dates.map(d => map[d] || null);
+  }
+  async function getWeather(dest, dates){
+    try {
+      const g = await geocode(dest);
+      if(!g) return { weather: dates.map(()=>null), note: `未找到「${dest}」的天气数据，请检查地名`, ok:false };
+      let daily;
+      try {
+        daily = await forecast(g.latitude, g.longitude, dates[0], dates[dates.length-1]);
+      } catch(e){
+        // 区分「日期超出可预报范围」与「真正的网络错误」
+        if(/out of allowed range|start_date|end_date/i.test(e.message)){
+          return { weather: dates.map(()=>null), note: `所选日期超出可预报范围（约未来 16 天），暂时查不到天气，已如实告知，未编造`, ok:false };
+        }
+        return { weather: dates.map(()=>null), note: `天气服务暂时不可用（网络错误），未编造任何数据`, ok:false };
+      }
+      const weather = alignWeather(daily, dates);
+      const farCount = weather.filter(w => !w).length;
+      if(farCount === weather.length)
+        return { weather, note: `「${dest}」这段时间天气暂时查不到，请稍后再试`, ok:false };
+      if(farCount > 0)
+        return { weather, note: `部分日期超出可预报范围（约未来 16 天），已如实标注，其余为真实预报`, ok:true };
+      return { weather, note: `天气数据来自 Open-Meteo，为真实预报，仅供参考`, ok:true };
+    } catch(e){
+      return { weather: dates.map(()=>null), note: `天气服务暂时不可用（网络错误），未编造任何数据`, ok:false };
+    }
+  }
+
+  // ---------- 屏切换 ----------
+  const views = { home: document.getElementById("home"), loading: document.getElementById("loading"), result: document.getElementById("result") };
+  function show(name){ Object.values(views).forEach(v=>v.classList.remove("active")); views[name].classList.add("active"); }
+
+  // ---------- 后端接通 ----------
+  // 后端地址：file:// 直接双击打开时用本地 127.0.0.1:8000；
+  // 由后端同源托管（手机/局域网访问 http://<IP>:8000）时用同源("")，无需跨域
+  const API_BASE = (location.protocol === "file:") ? "http://127.0.0.1:8000" : "";
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  // 三智能体加载动画（纯视觉反馈，对应真实流程的 检索→初稿→审校）
+  function runAgentAnimation(){
+    const agents = [
+      { el: document.getElementById("ag1"), txt: document.querySelector("#ag1 .txt"), ms: 1100 },
+      { el: document.getElementById("ag2"), txt: document.querySelector("#ag2 .txt"), ms: 1500 },
+      { el: document.getElementById("ag3"), txt: document.querySelector("#ag3 .txt"), ms: 1300 },
+    ];
+    agents.forEach((a, i) => {
+      setTimeout(() => {
+        a.el.classList.add("show");
+        a.txt.textContent = "工作中";
+        setTimeout(() => {
+          a.el.classList.add("done");
+          a.txt.textContent = i===0 ? "已检索 10 条" : i===1 ? "初稿完成" : "已审校";
+        }, a.ms);
+      }, i * 500);
+    });
+  }
+
+  // 调后端 /api/plan（240s 超时；真实模式要 联网搜 + 4步LLM，可能需 1~3 分钟），失败抛错由调用方回退示例
+  async function fetchPlan(dest, dates, prefsObj){
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 240000);
+    try {
+      const resp = await fetch(API_BASE + "/api/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destination: dest, num_days: days, budget,
+          interests: [...interests], start_date: selectedDate,
+          travel_style: prefsObj.travel_style || "balanced",
+          extra_notes: prefsObj.extra_notes || "",
+        }),
+        signal: ctrl.signal,
+      });
+      if(!resp.ok){ const e = await resp.json().catch(()=>({})); throw new Error(e.detail || ("HTTP " + resp.status)); }
+      return await resp.json();
+    } finally { clearTimeout(to); }
+  }
+
+  // ---------- 轻量 Markdown → HTML（只处理后端行程文本里常见的几种） ----------
+  function mdToHtml(text){
+    if(!text) return "";
+    let s = escapeHtml(text);
+    // > 引用块
+    s = s.replace(/^(&gt;|>)(.*)$/gm, '<blockquote>$2</blockquote>');
+    // ### / ## / # 标题 → 粗体段落
+    s = s.replace(/^#{1,3}\s+(.+)$/gm, '<strong class="md-h">$1</strong>');
+    // **加粗**
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // - 无序列表 / 1. 有序列表 → <li>
+    s = s.replace(/^[\s]*[-*]\s+(.+)$/gm, '<li>$1</li>');
+    s = s.replace(/^\s+\d+\.\s+(.+)$/gm, '<li>$1</li>');
+    // 连续 <li> 包裹成 <ul>
+    s = s.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+    // 段落换行
+    s = s.replace(/\n\n+/g, '</p><p>');
+    s = s.replace(/\n/g, '<br>');
+    if(s.startsWith('</p>')) s = s.slice(4);
+    if(s.endsWith('<p>')) s = s.slice(0, -3);
+    return '<p>' + s + '</p>';
+  }
+
+  // 把后端返回的 Markdown 行程文本解析渲染成按天卡片
+  function renderPlanText(text, dates, weather){
+    const wrap = document.getElementById("days-wrap");
+    const wk = ["周日","周一","周二","周三","周四","周五","周六"];
+
+    // 严格匹配：Day 必须在行首(或紧跟换行)，后面跟中文冒号/英文冒号/破折号/点
+    // 排除正文里 "...Day 2早晨..." 这种假匹配
+    const re = /\n\s*#{1,4}\s*Day\s+(\d+)\s*[：:—\-·]\s*([^\n]*)/gi;
+    let m, segs = [], lastIdx = 0;
+    while((m = re.exec(text))){
+      if(segs.length) segs[segs.length-1].body = text.slice(lastIdx, m.index).trim();
+      segs.push({ num: parseInt(m[1], 10), title: m[2].trim(), body: "" });
+      lastIdx = m.index + m[0].length;
+    }
+    if(segs.length) segs[segs.length-1].body = text.slice(lastIdx).trim();
+
+    // Day 1 之前的引导文字（简介/预算/提示等）
+    const introText = segs.length ? text.slice(0, text.indexOf(segs[0].title) - 10).trim() : "";
+
+    if(!segs.length){
+      // 完全没匹配到 Day → 整篇当纯文本展示
+      wrap.innerHTML = `<div class="day"><div class="dhead"><div class="dnum">行程<small>PLAN</small></div><div><div class="dtitle">AI 生成的完整行程</div></div></div><div class="acts"><div class="act"><div class="rail"><div class="time">全程</div><div class="node"></div></div><div class="body"><div class="adesc">${mdToHtml(text)}</div></div></div></div></div>`;
+      return 0;
+    }
+
+    // 构建完整 HTML：引导段(可选) + 每日卡片
+    let html = "";
+
+    // 引导段（预算/交通/整体建议）→ 折叠展示
+    if(introText && introText.length > 30){
+      html += `<div class="day day-intro">
+        <div class="dhead"><div class="dnum">📋<small>INFO</small></div><div><div class="dtitle">行程概览与贴士</div></div></div>
+        <div class="acts"><div class="adesc">${mdToHtml(introText)}</div></div>
+      </div>`;
+    }
+
+    // 每日卡片
+    html += segs.map((s, i) => {
+      const dt = dates[i];
+      const wd = dt ? wk[new Date(dt + "T00:00:00").getDay()] : "";
+      const w = weather && weather[i];
+      const wstr = w ? `${wmo(w.code)[0]} ${w.max}°/${w.min}°` : "天气待定";
+      const bodyHtml = s.body ? `<div class="adesc">${mdToHtml(s.body)}</div>` : "";
+      return `<div class="day">
+        <div class="dhead">
+          <div class="dnum">D${s.num}<small>DAY</small></div>
+          <div><div class="dtitle">${escapeHtml(s.title || ("第 " + s.num + " 天"))} <span class="dweather">${wstr}</span></div>
+          <div class="ddate">${dt ? md(dt) : ""} ${wd} · 第 ${s.num} 天</div></div>
+        </div>
+        <div class="acts">${bodyHtml}</div>
+      </div>`;
+    }).join("");
+
+    wrap.innerHTML = html;
+    return segs.length;
+  }
+
+  // ---------- 结构化行程渲染（renderPlanJson，根治 Markdown 解析易崩） ----------
+  // 类别 → 图标 + 配色
+  const CAT = {
+    "美食": { icon: "🍜", color: "#ff7a59" },
+    "观光": { icon: "🏞️", color: "#2bb3a3" },
+    "拍照": { icon: "📷", color: "#9b6dff" },
+    "交通": { icon: "🚇", color: "#4a90e2" },
+    "住宿": { icon: "🏨", color: "#e0a13c" },
+    "购物": { icon: "🛍️", color: "#e0609a" },
+    "休闲": { icon: "☕", color: "#7a8aa0" },
+    "其他": { icon: "📍", color: "#8a93a6" },
+  };
+  const PERIOD = { morning: "🌅 上午", afternoon: "☀️ 下午", evening: "🌙 晚上" };
+
+  function renderPlanJson(pj, dates, weather){
+    const wrap = document.getElementById("days-wrap");
+    const wk = ["周日","周一","周二","周三","周四","周五","周六"];
+    let html = "";
+
+    // 概览卡
+    if(pj && pj.summary){
+      html += `<div class="day day-intro">
+        <div class="dhead"><div class="dnum">📋<small>INFO</small></div><div><div class="dtitle">行程概览</div></div></div>
+        <div class="acts"><div class="adesc">${escapeHtml(pj.summary)}</div></div>
+      </div>`;
+    }
+
+    const daysArr = (pj && pj.days) || [];
+    html += daysArr.map((d, i) => {
+      const dt = dates[i];
+      const wd = dt ? wk[new Date(dt + "T00:00:00").getDay()] : "";
+      const w = weather && weather[i];
+      const wstr = w ? `${wmo(w.code)[0]} ${w.max}°/${w.min}°` : "天气待定";
+      const slotsHtml = (d.slots || []).map(slot => {
+        const label = PERIOD[slot.period] || (slot.period || "");
+        const items = (slot.items || []).map(it => {
+          const cat = CAT[it.category] || CAT["其他"];
+          const dur = it.duration ? `<span class="dur">${escapeHtml(it.duration)}</span>` : "";
+          return `<div class="ritem">
+            <span class="ricon" style="background:${cat.color}">${cat.icon}</span>
+            <div class="rbody">
+              <div class="rtitle">${escapeHtml(it.title || "")} ${dur}</div>
+              ${it.note ? `<div class="rnote">${escapeHtml(it.note)}</div>` : ""}
+            </div>
+          </div>`;
+        }).join("");
+        return `<div class="rslot"><div class="rlabel">${label}</div>${items}</div>`;
+      }).join("");
+      const dnum = d.day || (i + 1);
+      return `<div class="day">
+        <div class="dhead">
+          <div class="dnum">D${dnum}<small>DAY</small></div>
+          <div><div class="dtitle">${escapeHtml(d.theme || ("第 " + dnum + " 天"))} <span class="dweather">${wstr}</span></div>
+          <div class="ddate">${dt ? md(dt) : ""} ${wd} · 第 ${dnum} 天</div></div>
+        </div>
+        <div class="acts">${slotsHtml}</div>
+      </div>`;
+    }).join("");
+
+    // 贴士卡
+    if(pj && pj.tips && pj.tips.length){
+      html += `<div class="day day-intro">
+        <div class="dhead"><div class="dnum">💡<small>TIPS</small></div><div><div class="dtitle">实用贴士</div></div></div>
+        <div class="acts"><ul class="tips">${pj.tips.map(t => `<li>${escapeHtml(t)}</li>`).join("")}</ul></div>
+      </div>`;
+    }
+
+    wrap.innerHTML = html;
+    let total = 0;
+    daysArr.forEach(d => (d.slots || []).forEach(s => total += (s.items || []).length));
+    return total;
+  }
+
+  // ---------- 行程数据（示例） ----------
+  function buildDays(dest){
+    const templates = [
+      { t:"到达与城市初探", a:[
+        { time:"14:00", kind:"入住", title:`抵达${dest} · 酒店入住`, desc:"推荐住市中心周边，地铁直达、夜生活方便。", meta:["地铁","行李寄存"] },
+        { time:"16:30", kind:"漫步", title:"老城街区慢逛", desc:"文艺街区改造的院落，喝茶、拍照、感受本地节奏。", meta:["免费","2h"] },
+        { time:"19:00", kind:"美食", title:"地道首餐体验", desc:"本地人常去的老牌餐厅，微辣锅底配招牌菜，人均约 ¥120。", meta:["人均¥120","需排队"] },
+      ]},
+      { t:"地标与文艺", a:[
+        { time:"07:30", kind:"景点", title:"必去地标一早逛", desc:"早上去人少体验好，建议看最热门的两个区域。", meta:["门票¥55","3h"] },
+        { time:"12:00", kind:"美食", title:"小吃街扫街", desc:"钵钵鸡、蛋烘糕、甜水面，一条街吃遍市井味道。", meta:["人均¥40"] },
+        { time:"15:00", kind:"拍照", title:"工业风文艺园区", desc:"旧工厂改造的园区，红砖墙+涂鸦，出片率极高。", meta:["免费","1.5h"] },
+      ]},
+      { t:"古韵与市井", a:[
+        { time:"09:00", kind:"人文", title:"历史街区 & 古庙", desc:"文化圣地紧邻古街，边逛边吃特色小吃。", meta:["联票¥60","2.5h"] },
+        { time:"14:00", kind:"自然", title:"城市公园喝茶", desc:"老茶社盖碗茶，体验采耳，感受慢生活。", meta:["¥25","2h"] },
+        { time:"18:30", kind:"夜生活", title:"河边酒吧街", desc:"河边酒吧一条街，live music 与河景微醺。", meta:["人均¥80"] },
+      ]},
+      { t:"山水一日", a:[
+        { time:"08:00", kind:"自然", title:"近郊自然名胜", desc:"千年工程奇观，配周边道教名山，高铁半小时可达。", meta:["高铁30min","全天"] },
+        { time:"19:30", kind:"美食", title:"回民街夜宵", desc:"烤肉串、醪糟粉子，结束充实的一天。", meta:["人均¥50"] },
+      ]},
+      { t:"告别与手信", a:[
+        { time:"10:00", kind:"购物", title:"伴手礼采购", desc:"特产、茶叶、肉脯，机场可托运。", meta:["伴手礼"] },
+        { time:"13:00", kind:"漫步", title:"最后的市中心", desc:"地标打卡，买杯奶茶收尾。", meta:["1h"] },
+      ]},
+    ];
+    return templates.slice(0, days);
+  }
+
+  // ---------- 渲染天气条 ----------
+  function renderWeather(res, dates){
+    const strip = document.getElementById("weather-strip");
+    const labels = ["今天","明天","后天"];
+    strip.innerHTML = res.weather.map((w, i) => {
+      const lab = labels[i] || md(dates[i]);
+      if(!w){
+        return `<div class="wcard far"><div class="wd">${lab}</div><div class="wi">🌫️</div><div class="wt">日期太远</div><div class="ws">暂无法预报</div></div>`;
+      }
+      const [icon, text] = wmo(w.code);
+      return `<div class="wcard"><div class="wd">${lab}</div><div class="wi">${icon}</div><div class="wt">${w.max}°/${w.min}°</div><div class="ws">${text}</div></div>`;
+    }).join("");
+    const note = document.getElementById("wnote");
+    note.textContent = res.note;
+    note.className = "wnote" + (res.ok ? " ok" : "");
+  }
+
+  // ---------- 渲染「AI 参考来源」 ----------
+  // 展示研究员实际调用搜索工具拿到的真实链接（title/url/abstract/source）
+  // 策略（2026-09-19）：不做硬过滤（怕误杀），改为「挑重点展示」——
+  // 排序把 旅行主题相关 + 播放量高 的顶上去，默认只露前 6 条，其余折叠可展开。
+  function renderSources(sources){
+    const box = document.getElementById("sources");
+    const body = document.getElementById("srcBody");
+    const cnt = document.getElementById("srcCount");
+    box.style.display = "block";  // 始终显示
+
+    if(!sources || !sources.length){
+      cnt.textContent = "0";
+      body.innerHTML = `<div class="src-empty">
+        <div class="src-empty-icon">🔍</div>
+        <div class="src-empty-text">本次生成未捕获到搜索来源链接</div>
+        <div class="src-empty-hint">可能原因：查询太具体 / 搜索引擎临时限流 / AI 未调用搜索工具</div>
+        <div class="src-empty-tip">💡 想看最新攻略？用下方红色按钮跳小红书官方搜索 →</div>
+      </div>`;
+      return;
+    }
+
+    // —— 排序：标题含旅行主题词的排前；同档内 B站按播放量降序（其他来源保序）——
+    const TRAVEL_WORDS = ["攻略","美食","景点","酒店","住宿","民宿","路线","行程","交通",
+      "机位","避坑","小吃","vlog","citywalk","一日游","二日游","三日游","自由行",
+      "打卡","探店","游记","口岸","过关","玩"];
+    const playOf = s => {
+      const m = (s.abstract || "").match(/播放：([\d,]+)/);
+      return m ? +m[1].replace(/,/g, "") : 0;
+    };
+    const travelOf = s => {
+      const t = (s.title || "").toLowerCase();
+      return TRAVEL_WORDS.some(w => t.includes(w)) ? 1 : 0;
+    };
+    const sorted = [...sources].sort((a, b) =>
+      (travelOf(b) - travelOf(a)) || (playOf(b) - playOf(a)));
+
+    const TOP_N = 6;
+    let head = sorted.slice(0, TOP_N);
+    let rest = sorted.slice(TOP_N);
+
+    // 携程保底席位（2026-09-19 用户反馈：携程帖子质量可以，适当加一点）——
+    // 前 TOP_N 里没有携程时，把库里排序最靠前的携程插到第 2 位，最后一位挤出进折叠区。
+    if (!head.some(s => s.source === "携程")) {
+      const ctrip = sorted.find(s => s.source === "携程");
+      if (ctrip) {
+        const dropped = head[head.length - 1];
+        head = [head[0], ctrip, ...head.slice(1, head.length - 1)];
+        rest = [dropped, ...rest.filter(s => s !== ctrip)];
+      }
+    }
+
+    const card = s => {
+      const src = s.source === "小红书" ? "xhs"
+        : s.source === "百度" ? "bd"
+        : s.source === "B站" ? "bili"
+        : s.source === "携程" ? "ctrip"
+        : "unk";
+      const tagText = s.source || "其他";
+      return `<a class="src" href="${escapeHtml(s.url)}" target="_blank" rel="noopener">
+        <span class="stag ${src}">${escapeHtml(tagText)}</span>
+        <div class="stit">${escapeHtml(s.title || s.url)}</div>
+        ${s.abstract ? `<div class="sab">${escapeHtml(s.abstract)}</div>` : ""}
+        <div class="surl">${escapeHtml(s.url)}</div>
+      </a>`;
+    };
+
+    body.innerHTML = head.map(card).join("") + (rest.length ? `
+      <details class="src-more">
+        <summary>展开其余 ${rest.length} 条（已按相关性 / 播放量排序）</summary>
+        ${rest.map(card).join("")}
+      </details>` : "");
+    cnt.textContent = sources.length;
+    box.style.display = "block";
+  }
+  // 折叠/展开
+  document.getElementById("sourcesHead").onclick = () => {
+    document.getElementById("sources").classList.toggle("open");
+  };
+
+  // ---------- 渲染行程 ----------
+  function renderItinerary(dest, weather, dates){
+    const wrap = document.getElementById("days-wrap");
+    const list = buildDays(dest);
+    const wk = ["周日","周一","周二","周三","周四","周五","周六"];
+    let total = 0;
+    wrap.innerHTML = list.map((d, i) => {
+      total += d.a.length;
+      const dt = dates[i];
+      const wd = wk[new Date(dt + "T00:00:00").getDay()];
+      const w = weather[i];
+      const wstr = w ? `${wmo(w.code)[0]} ${w.max}°/${w.min}°` : "天气待定";
+      return `<div class="day">
+        <div class="dhead">
+          <div class="dnum">D${i+1}<small>DAY</small></div>
+          <div>
+            <div class="dtitle">${d.t} <span class="dweather">${wstr}</span></div>
+            <div class="ddate">${md(dt)} ${wd} · 第 ${i+1} 天</div>
+          </div>
+        </div>
+        <div class="acts">
+          ${d.a.map(a => `
+            <div class="act">
+              <div class="rail"><div class="time">${a.time}</div><div class="node"></div></div>
+              <div class="body">
+                <div class="atitle">${a.title}<span class="kind">${a.kind}</span></div>
+                <div class="adesc">${a.desc}</div>
+                <div class="ameta">${a.meta.map(m=>`<span>${m}</span>`).join("")}</div>
+              </div>
+            </div>`).join("")}
+        </div>
+      </div>`;
+    }).join("");
+    return total;
+  }
+
+  // ---------- 去小红书看实时笔记（官方搜索深链） ----------
+  // 服务端无法抓取新鲜小红书帖（平台屏蔽搜索引擎），故直接跳官方实时搜索。
+  function renderXhs(dest, prefs){
+    const kw = (dest || "旅行") + (prefs && prefs.trim() ? " " + prefs.trim().slice(0, 10) : " 旅游攻略");
+    const url = "https://www.xiaohongshu.com/search_result?keyword=" + encodeURIComponent(kw);
+    const t = document.getElementById("xhsTitle");
+    if (t) t.textContent = `在小红书看「${kw}」实时笔记`;
+    const b = document.getElementById("xhsBtn");
+    if (b) b.onclick = () => window.open(url, "_blank");
+  }
+
+  // ---------- 生成流程 ----------
+  const btn = document.getElementById("generate");
+  btn.onclick = async () => {
+    const dest = document.getElementById("dest").value.trim() || "成都";
+    const sdate = selectedDate;
+    const prefsText = document.getElementById("prefs").value.trim();
+    const dates = [];
+    for(let i = 0; i < days; i++) dates.push(addDaysISO(sdate, i));
+
+    // 结果页头部
+    document.getElementById("rCity").textContent = dest;
+    document.getElementById("rDays").textContent = days + " 天 " + (days-1) + " 晚";
+    document.getElementById("rBudget").textContent = budget;
+    document.getElementById("rStyle").textContent = ({relaxed:"轻松",balanced:"均衡",adventure:"紧凑"})[travelStyle];
+    document.getElementById("rRange").textContent = md(dates[0]) + "–" + md(dates[dates.length-1]);
+    const reqEl = document.getElementById("rReq");
+    if(prefsText){ reqEl.style.display = "block"; document.getElementById("rReqText").textContent = prefsText; }
+    else { reqEl.style.display = "none"; }
+
+    show("loading");
+    btn.disabled = true;
+
+    // 天气（前端 Open-Meteo，免费无需 Key）与后端行程生成并行
+    const weatherPromise = getWeather(dest, dates);
+    runAgentAnimation();                       // 三 Agent 视觉动画（不阻塞真实请求）
+    let plan = null, planErr = null;
+    try { plan = await fetchPlan(dest, dates, { travel_style: travelStyle, extra_notes: prefsText }); }
+    catch(e){ planErr = e.message; }
+    let res;
+    try { res = await weatherPromise; }
+    catch(e){ res = { weather: dates.map(()=>null), note: "天气查询超时或失败，已跳过", ok:false }; }
+
+    // 渲染天气
+    try { renderWeather(res, dates); } catch(_) {}
+
+    // 渲染行程：优先用结构化 JSON（清爽卡片）；次之用 Markdown 文本解析；后端未连接 → 回退示例
+    let total = 0;
+    try {
+      if(plan && plan.itinerary_json && Array.isArray(plan.itinerary_json.days) && plan.itinerary_json.days.length){
+        total = renderPlanJson(plan.itinerary_json, dates, res.weather);
+      } else if(plan && plan.itinerary && (plan.itinerary.includes("Day") || plan.itinerary.includes("#") || plan.itinerary.includes("天"))){
+        total = renderPlanText(plan.itinerary, dates, res.weather);
+      } else if(plan){
+        total = renderItinerary(dest, res.weather, dates);
+        alert("后端未返回可用行程（格式异常），已显示内置示例行程。");
+      } else {
+        total = renderItinerary(dest, res.weather, dates);
+        alert("后端未连接（" + (planErr || "未知错误") + "），已显示内置示例行程。\n启动 server 后刷新即可获取真实 AI 行程。");
+      }
+
+      // 头部动态数据
+      const w0 = res.weather[0];
+      document.getElementById("rTemp").textContent = w0 ? w0.max + "\u00B0" : "\u2014";
+      document.getElementById("rWeather").textContent = w0 ? wmo(w0.code)[1] : "\u5f85\u5b9a";
+      document.getElementById("rSpots").textContent = total;
+
+      // 参考来源：研究员实际搜到的帖子/网页（真实模式才有，mock 也会展示示例）
+      try { renderSources(plan ? plan.sources : null); }
+      catch(_) { renderSources(null); }  // 出错也显示空状态提示，不隐藏
+
+      // 去小红书看实时笔记：官方搜索深链（展示最新真帖）
+      try { renderXhs(dest, prefsText); } catch(_) {}
+    } catch(renderErr) {
+      console.error("render error:", renderErr);
+      // 即使渲染出错也要跳到结果页，不能卡在 loading
+      total = 0;
+    }
+
+    show("result");
+    btn.disabled = false;
+  };
+
+  document.getElementById("backHome").onclick = () => show("home");
+  document.getElementById("shareBtn").onclick = () => alert("Demo 仅展示交互，真实分享会调 wx.shareAppMessage");
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# 不进入镜像，避免泄露密钥 / 增大体积
+.env
+.env.example
+.venv
+__pycache__
+*.pyc
+.git
+.gitignore
+README.md

@@ -1,148 +1,109 @@
-# AI Travel Planner 🧳
+# alex 旅小帮 · AI Travel Planner
 
-Plan your next adventure with AI — a personalized travel itinerary generator powered by DeepSeek, with smart search switching between Baidu + Xiaohongshu (for China) and DuckDuckGo (for overseas).
+微信小程序 + FastAPI 后端的 AI 旅行规划工具：输入目的地 / 天数 / 兴趣，由 **DeepSeek 驱动的三 Agent 协作**（Researcher → Planner → Critic）生成逐日行程，并展示 AI 实际参考的真实帖子来源。
 
-Built on top of [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps) by Shubhamsaboo, with significant enhancements to personalization, model compatibility, and China-localized search.
+> 前身为 [Streamlit 单机版](legacy/travel_agent.py)（已归档），现重构为「微信小程序 + 云托管后端」完整工程。
 
-## What It Does
+## ✨ 功能亮点
 
-Tell it where you want to go, how many days, and your preferences — it will:
+| 功能 | 说明 |
+|---|---|
+| 🤖 三 Agent 协作 | Researcher（搜资料）→ Planner（排行程）→ Critic（挑毛病）→ Planner 终稿 |
+| 📺 B站直调搜索 | 直连 `api.bilibili.com` 官方接口，免登录、服务器可跑；带 buvid3 会话 + 实体词相关性校验，返回真实视频链接 / UP主 / 播放量 / 发布时间 |
+| 🏝️ 携程真实游记 | 百度 `site:` 语法锁定携程 UGC，一手游记攻略 |
+| 🔍 百度事实兜底 | 开放时间 / 票价 / 交通等硬事实，仅在主力源未覆盖时调用 |
+| 📑 来源透明 | 小程序与 Web demo 均展示「AI 参考来源」：旅行主题优先 + 播放量排序 + 携程保底席位，默认露 6 条其余折叠 |
+| 📕 小红书入口 | 合规深链：复制官方搜索链接，跳转看最新真实笔记（不抓取内容） |
+| 🌤️ 行程内天气 | 按出行日期拉取目的地天气预报（WMO 代码转图标） |
+| 📅 一键带走 | 行程导出 .ics 日历 / .md 笔记 / .txt 纯文本，复制即用 |
+| 💬 微信内网调用 | `wx.cloud.callContainer` 走微信私有链路，**免 request 合法域名、免域名备案** |
 
-1. **Auto-detect your destination** — Chinese cities use Baidu + Xiaohongshu, overseas use DuckDuckGo
-2. **Search the web** for real, up-to-date travel info (马蜂窝/携程/大众点评/小红书 for China, global sources for overseas)
-3. **Generate a personalized itinerary** that respects your budget, interests, and dietary needs
-4. **Export in 3 formats** — `.ics` (calendar), `.md` (blog/notes), `.txt` (universal)
+## 🏗️ 架构
 
-## Features
+```
+┌─────────────────┐   callContainer(微信内网)   ┌──────────────────────┐
+│  微信小程序       │ ──────────────────────────▶ │  微信云托管 FastAPI    │
+│  miniprogram/    │                             │  server/main.py      │
+│  表单/结果/来源区  │ ◀────────────────────────── │  异步任务 + 轮询       │
+└─────────────────┘                             └──────────┬───────────┘
+                                                           │
+                                                ┌──────────▼───────────┐
+                                                │  agent_engine.py     │
+                                                │  Agno 三 Agent 协作   │
+                                                │  DeepSeek (LLM)      │
+                                                ├──────────────────────┤
+                                                │ 搜索工具:             │
+                                                │  · BilibiliSearch    │
+                                                │  · SiteSearch(携程)   │
+                                                │  · BaiduSearch(兜底)  │
+                                                └──────────────────────┘
+```
 
-- **Smart Search Engine**: Auto-switches between Baidu + Xiaohongshu (中国 🔴) and DuckDuckGo (海外 🔵) based on destination
-- **Xiaohongshu (小红书) Search**: China destinations also pull authentic user travel notes from xiaohongshu.com (via Baidu `site:` filter) — hidden gems, local restaurant picks, photo spots, and 避坑 (pitfall) guides that official sites miss
-- **China-Localized**: Chinese destinations get Chinese search keywords, ¥ prices, subway routes, local dish names
-- **Dual-Agent Architecture**: A Researcher Agent searches the web, a Planner Agent writes the itinerary
-- **Personalized Preferences**: Budget level, travel style, interests, dietary restrictions, custom notes
-- **DeepSeek Powered**: Uses DeepSeek's API (cheaper than OpenAI, excellent Chinese support)
-- **No API Key for Search**: Both Baidu and DuckDuckGo are free, no registration needed
-- **Multi-format Export**: `.ics` (calendar), `.md` (Markdown), `.txt` (plain text)
+长耗时生成走「异步提交 + 轮询」（`/api/plan/async`），规避单次调用 60s 上限。
 
-## Quick Start
+## 📁 目录结构
+
+```
+├── miniprogram/           # 微信小程序端（原生）
+│   ├── app.js             # 云环境初始化 + 全局配置
+│   ├── pages/index/       # 表单 → 加载动画 → 行程结果 + 来源区
+│   └── utils/request.js   # callContainer / wx.request 双通道封装
+├── server/                # FastAPI 后端（部署到微信云托管）
+│   ├── main.py            # API：/health、/api/plan/async、/api/weather
+│   ├── agent_engine.py    # 三 Agent + 自定义搜索工具（核心逻辑）
+│   ├── demo.html          # 网页演示版（与小程序功能对齐，含来源区）
+│   └── Dockerfile         # 云托管容器
+├── legacy/                # 旧版归档
+│   └── travel_agent.py    # Streamlit 单机版（第一代原型）
+├── 云托管部署指南.md        # 从零部署到微信云托管
+└── miniprogram/上架指南.md # 小程序提审 / 上架要点
+```
+
+## 🚀 快速开始
+
+### 1. 跑后端（本地）
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/lamyiufung0505-spec/ai-travel-planner.git
-cd ai-travel-planner
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Run the app
-streamlit run travel_agent.py
+cd server
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt   # Windows
+copy .env.example .env                                     # 填入 DEEPSEEK_API_KEY
+.venv\Scripts\python -m uvicorn main:app --reload --port 8000
 ```
 
-The app will open at `http://localhost:8501`.
+浏览器打开 `http://127.0.0.1:8000/` 即可用 Web demo 体验（与小程序功能一致）。
 
-## Get Your DeepSeek API Key
+### 2. 跑小程序
 
-1. Go to [platform.deepseek.com](https://platform.deepseek.com)
-2. Sign up / log in
-3. Navigate to API Keys and create a new key
-4. Paste it into the app's input field
+1. 微信开发者工具导入 `miniprogram/` 目录
+2. 本地调试：`详情 → 本地设置 → 勾选「不校验合法域名」`，并在 `app.js` 把 `useContainer` 设为 `false`、`apiBase` 指向 `http://127.0.0.1:8000`
+3. 云端调试：`useContainer` 设为 `true`，`cloudEnv` / `cloudService` 填自己的云托管环境与服务名
 
-New users get free credits. DeepSeek-chat costs approximately ¥1 per million tokens — extremely affordable.
+### 3. 部署到微信云托管
 
-## How It Works
+详见 [云托管部署指南.md](云托管部署指南.md)。要点：
 
-```
-User Input (destination, days, preferences)
-        |
-        v
-  [Destination Detection]
-        |
-   +----+----+
-   |         |
-China 🔴   Overseas 🔵
-   |         |
-Baidu + 小红书  DuckDuckGo
-   |         |
-   +----+----+
-        |
-        v
-+------------------+     Search Results
-| Researcher Agent | -----> (马蜂窝/携程/点评 or global sources)
-+------------------+
-        |
-        v  (search results passed to Planner)
-        |
-+------------------+
-| Planner Agent    | -----> Structured itinerary
-+------------------+
-        |
-        v
-+------------------+
-| Export           | -----> .ics / .md / .txt
-+------------------+
-```
+- 上传 `server/` 代码包，监听端口 `80`，健康检查 `/health`
+- 环境变量配置 `DEEPSEEK_API_KEY`
+- 运行模式选「**持续运行**」（自动扩缩容会缩到 0 导致 503）
+- 小程序端用 `callContainer` 调用：**不需要配置 request 合法域名，也不需要备案**
 
-### Why Two Agents?
+## 🔧 搜索源策略（为什么这样设计）
 
-- **Researcher** has access to web search tools — it decides what to search, analyzes results, and filters the best 10
-- **Planner** has no tools — it focuses purely on writing a great itinerary based on the research data
+| 决策 | 原因 |
+|---|---|
+| B站用官方接口而非百度 `site:` | 百度索引旧、返回跳转链；官方接口有播放量/发布时间，内容新鲜 |
+| 必须带 buvid3 Cookie | 实测匿名请求约 1/3 概率被 B站降级，返回与关键词无关的泛化热门 |
+| 结果做实体词相关性校验 | 降级/模糊匹配会混入无关内容，宁缺毋滥 |
+| 携程保底展示席位 | 无播放量字段会被 B站高播放内容挤出首屏，但它质量确实好 |
+| 展示层排序折叠而非硬过滤 | 主题硬过滤容易误杀，先「挑重点展示」，LLM 拿到的数据不变 |
 
-This separation of concerns mirrors real-world AI applications where different agents handle different tasks.
+## ⚠️ 免责声明
 
-### Smart Search Detection
+- 行程由 AI 生成，门票价格 / 开放时间 / 交通信息请以官方渠道为准
+- 「AI 参考来源」链接指向第三方平台（B站 / 携程 / 百度）公开内容，版权归原作者所有
+- 小红书入口仅为官方搜索链接复制，本项目不抓取、不存储任何小红书内容
 
-The app uses `is_chinese_destination()` to auto-detect:
-- 80+ Chinese city names (北京, 成都, 丽江, 九寨沟...)
-- Province abbreviations (川, 粤, 滇...)
-- Chinese keywords (中国, 国内, 内地...)
-- Chinese characters (any CJK Unicode range input)
+## 📄 License
 
-When a Chinese destination is detected:
-- Search engine switches to **Baidu** (default language: zh)
-- Researcher generates **Chinese search keywords** (e.g. "成都 5日游 攻略")
-- Planner adds **China-specific constraints** (¥ prices, subway lines, local dish names)
-
-## Customization
-
-The app supports the following personalization options:
-
-| Option | Choices |
-|--------|---------|
-| Budget | budget (backpacker) / mid-range / luxury |
-| Travel Style | relaxed (slow pace) / balanced / adventure (packed schedule) |
-| Interests | nature, food, history, shopping, nightlife, art, sports, photography |
-| Dietary | no restrictions / vegetarian / halal / vegan / gluten-free |
-| Extra Notes | Free text — anything you want the AI to consider |
-
-## Tech Stack
-
-- **[DeepSeek](https://www.deepseek.com)** — LLM for reasoning and generation
-- **[agno](https://github.com/agno-agi/agno)** — Agent orchestration framework
-- **[Baidu Search](https://www.baidu.com)** — Chinese web search (free, no API key)
-- **[Xiaohongshu / 小红书](https://www.xiaohongshu.com)** — Real-user travel notes for China (via Baidu `site:xiaohongshu.com` filter, free, no API key)
-- **[DuckDuckGo](https://duckduckgo.com)** — Global web search (free, no API key)
-- **[Streamlit](https://streamlit.io)** — Python web UI framework
-- **[icalendar](https://pypi.org/project/icalendar/)** — Calendar file generation
-
-## What I Changed from the Original
-
-| Change | Reason |
-|--------|--------|
-| OpenAI GPT-4o → DeepSeek | Cheaper, better Chinese support, no overseas account needed |
-| SerpAPI → Baidu (China) + DuckDuckGo (overseas) | Free, no API key, auto-switch for best local results |
-| Added Xiaohongshu search for China | Pull authentic user experiences (real notes, 避坑, photo spots) from 小红书 via Baidu `site:` filter — more 接地气 than official sites |
-| Added smart destination detection | Chinese cities get real local info from 马蜂窝/携程/大众点评 |
-| Added 5 personalization inputs | Budget, style, interests, dietary, notes |
-| Added 4 CRITICAL prompt constraints | Force the model to strictly respect user preferences |
-| Added China-specific Planner constraints | ¥ prices, subway routes, local dish names for Chinese destinations |
-| Added .md and .txt export | Not just calendar — also blog-friendly and universal formats |
-| Removed local_travel_agent.py | Only keeping the enhanced version |
-
-## Credits
-
-- Original project: [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps) by Shubhamsaboo
-- Agent framework: [agno](https://github.com/agno-agi/agno)
-
-## License
-
-MIT License — see [LICENSE](LICENSE) for details.
+[MIT](LICENSE)
